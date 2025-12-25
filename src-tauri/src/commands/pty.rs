@@ -37,6 +37,7 @@ pub fn spawn_shell(app: AppHandle, id: String) -> Result<(), String> {
     #[cfg(not(target_os = "windows"))]
     let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string());
 
+    #[allow(unused_mut)]
     let mut cmd = CommandBuilder::new(&shell);
 
     // Set up environment

@@ -13,6 +13,21 @@ export interface FileInfo {
   is_readonly: boolean;
 }
 
+// Remote connection types
+export interface RemoteConnection {
+  id: string;
+  name: string;
+  host: string;
+  port: number;
+  username: string;
+  authType: 'password' | 'key';
+  keyPath?: string;
+}
+
+export interface RemoteSession {
+  sessionId: string;
+}
+
 // Editor types
 export interface FileTab {
   id: string;
@@ -22,12 +37,14 @@ export interface FileTab {
   content: string;
   originalContent: string;
   isDirty: boolean;
+  remote?: RemoteSession; // If set, file is on remote server
 }
 
 // Terminal types
 export interface TerminalInstance {
   id: string;
   title: string;
+  remote?: RemoteSession; // If set, terminal is SSH session
 }
 
 // File tree types

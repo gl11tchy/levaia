@@ -116,6 +116,9 @@ export function MenuBar() {
     tabs,
     closeTab,
     closeAllTabs,
+    toggleRemoteDialog,
+    disconnectRemote,
+    activeRemoteId,
   } = useEditorStore();
 
   const isMacOS = isMac();
@@ -134,6 +137,15 @@ export function MenuBar() {
       label: 'Open Folder...',
       shortcut: 'Ctrl+O',
       action: openFolder,
+    },
+    {
+      label: 'Connect Remote...',
+      action: toggleRemoteDialog,
+    },
+    {
+      label: 'Disconnect Remote',
+      action: disconnectRemote,
+      disabled: !activeRemoteId,
     },
     { separator: true },
     {

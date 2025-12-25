@@ -29,20 +29,39 @@ export function FileTreeNode({
     toggleFolder,
     openFile,
     fileTree,
+    // Remote state
+    activeRemoteId,
+    remoteExpandedFolders,
+    remoteFileTree,
+    remoteToggleFolder,
+    remoteOpenFile,
   } = useEditorStore();
   const [renameValue, setRenameValue] = useState(entry.name);
 
-  const isExpanded = expandedFolders.has(entry.path);
+  // Determine if we're in remote mode
+  const isRemoteMode = !!activeRemoteId;
+  const effectiveExpandedFolders = isRemoteMode ? remoteExpandedFolders : expandedFolders;
+  const effectiveFileTree = isRemoteMode ? remoteFileTree : fileTree;
+
+  const isExpanded = effectiveExpandedFolders.has(entry.path);
   const isSelected = selectedPath === entry.path;
   const isRenaming = renamingPath === entry.path;
-  const children = entry.is_directory ? fileTree.get(entry.path) || [] : [];
+  const children = entry.is_directory ? effectiveFileTree.get(entry.path) || [] : [];
 
   const handleClick = () => {
     setSelectedPath(entry.path);
     if (entry.is_directory) {
-      toggleFolder(entry.path);
+      if (isRemoteMode) {
+        remoteToggleFolder(entry.path);
+      } else {
+        toggleFolder(entry.path);
+      }
     } else {
-      openFile(entry.path);
+      if (isRemoteMode) {
+        remoteOpenFile(entry.path);
+      } else {
+        openFile(entry.path);
+      }
     }
   };
 

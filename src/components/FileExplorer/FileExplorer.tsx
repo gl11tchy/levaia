@@ -7,7 +7,20 @@ import { ContextMenu } from './ContextMenu';
 import type { ContextMenuPosition, ContextMenuItem } from '../../types';
 
 export function FileExplorer() {
-  const { rootPath, fileTree, setSelectedPath, gitPanelVisible, toggleGitPanel } = useEditorStore();
+  const {
+    rootPath,
+    fileTree,
+    setSelectedPath,
+    gitPanelVisible,
+    toggleGitPanel,
+    // Remote state
+    activeRemoteId,
+    remoteRootPath,
+    remoteFileTree,
+    disconnectRemote,
+    toggleRemoteDialog,
+    remoteConnections,
+  } = useEditorStore();
   const gitBranch = useGitBranch(rootPath);
   const { openFolder, createFile, createDirectory, renameItem, deleteItem } = useFileSystem();
   const [contextMenu, setContextMenu] = useState<{
@@ -113,10 +126,20 @@ export function FileExplorer() {
     setRenamingPath(null);
   };
 
-  const rootEntries = rootPath ? fileTree.get(rootPath) || [] : [];
-  const rootName = rootPath?.split('/').pop() || '';
+  // Determine if we're in remote mode
+  const isRemoteMode = !!activeRemoteId;
+  const effectiveRootPath = isRemoteMode ? remoteRootPath : rootPath;
+  const effectiveFileTree = isRemoteMode ? remoteFileTree : fileTree;
 
-  if (!rootPath) {
+  const rootEntries = effectiveRootPath ? effectiveFileTree.get(effectiveRootPath) || [] : [];
+  const rootName = effectiveRootPath?.split('/').pop() || '';
+
+  // Get connected server name
+  const connectedServer = isRemoteMode
+    ? remoteConnections.find(c => c.id === activeRemoteId)?.name || 'Remote'
+    : null;
+
+  if (!effectiveRootPath) {
     return (
       <div
         className="h-full flex flex-col items-center justify-center bg-editor-sidebar p-4"
@@ -125,12 +148,20 @@ export function FileExplorer() {
         <p className="text-editor-text-muted text-sm mb-4 text-center">
           No folder opened
         </p>
-        <button
-          className="px-4 py-2 bg-editor-accent text-white rounded hover:bg-blue-600 transition-colors"
-          onClick={openFolder}
-        >
-          Open Folder
-        </button>
+        <div className="flex flex-col gap-2">
+          <button
+            className="px-4 py-2 bg-editor-accent text-white rounded hover:bg-blue-600 transition-colors"
+            onClick={openFolder}
+          >
+            Open Folder
+          </button>
+          <button
+            className="px-4 py-2 bg-editor-hover text-editor-text rounded hover:bg-editor-border transition-colors"
+            onClick={toggleRemoteDialog}
+          >
+            Connect Remote
+          </button>
+        </div>
       </div>
     );
   }
@@ -145,6 +176,22 @@ export function FileExplorer() {
       <div className="px-4 py-2 text-xs uppercase tracking-wider text-editor-text-muted font-medium border-b border-editor-border">
         Explorer
       </div>
+
+      {/* Remote connection indicator */}
+      {isRemoteMode && (
+        <div className="px-3 py-2 bg-blue-500/10 border-b border-editor-border flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 bg-green-500 rounded-full" />
+            <span className="text-xs text-blue-400 truncate">{connectedServer}</span>
+          </div>
+          <button
+            onClick={disconnectRemote}
+            className="text-xs px-2 py-0.5 bg-editor-hover rounded hover:bg-red-500/20 text-editor-text-muted hover:text-red-400"
+          >
+            Disconnect
+          </button>
+        </div>
+      )}
 
       <div className="flex-1 overflow-y-auto overflow-x-hidden py-1">
         <div className="px-2 py-1 text-sm font-medium text-editor-text truncate">

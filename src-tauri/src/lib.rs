@@ -39,6 +39,23 @@ pub fn run() {
             commands::git::git_commit,
             commands::git::git_checkout,
             commands::git::git_create_branch,
+            // SSH/SFTP commands
+            commands::ssh::ssh_connect,
+            commands::ssh::ssh_disconnect,
+            commands::ssh::ssh_is_connected,
+            commands::ssh::ssh_list_directory,
+            commands::ssh::ssh_read_file,
+            commands::ssh::ssh_write_file,
+            commands::ssh::ssh_delete,
+            commands::ssh::ssh_rename,
+            commands::ssh::ssh_create_dir,
+            commands::ssh::ssh_create_file,
+            commands::ssh::ssh_get_home_dir,
+            // SSH PTY commands
+            commands::ssh_pty::ssh_spawn_shell,
+            commands::ssh_pty::ssh_write_to_shell,
+            commands::ssh_pty::ssh_resize_shell,
+            commands::ssh_pty::ssh_kill_shell,
         ])
         .setup(|app| {
             // Create main window programmatically

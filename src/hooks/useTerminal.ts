@@ -9,9 +9,10 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 interface UseTerminalOptions {
   id: string;
   onExit?: () => void;
+  remote?: { sessionId: string };
 }
 
-export function useTerminal({ id, onExit }: UseTerminalOptions) {
+export function useTerminal({ id, onExit, remote }: UseTerminalOptions) {
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const searchAddonRef = useRef<SearchAddon | null>(null);
@@ -19,6 +20,7 @@ export function useTerminal({ id, onExit }: UseTerminalOptions) {
   const isSpawnedRef = useRef(false);
   const unlistenersRef = useRef<UnlistenFn[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
+  const isRemote = !!remote;
 
   const initTerminal = useCallback(async (container: HTMLDivElement) => {
     if (terminalRef.current || isSpawnedRef.current) return;
@@ -89,26 +91,38 @@ export function useTerminal({ id, onExit }: UseTerminalOptions) {
 
     unlistenersRef.current = [dataUnlisten, exitUnlisten];
 
-    // Send terminal input to PTY
+    // Send terminal input to PTY (local or remote)
     terminal.onData((data) => {
-      invoke('write_to_pty', { id, data }).catch(console.error);
+      if (isRemote && remote) {
+        invoke('ssh_write_to_shell', { sessionId: remote.sessionId, ptyId: id, data }).catch(console.error);
+      } else {
+        invoke('write_to_pty', { id, data }).catch(console.error);
+      }
     });
 
-    // Spawn the shell
+    // Spawn the shell (local or remote)
     try {
-      await invoke('spawn_shell', { id });
+      if (isRemote && remote) {
+        await invoke('ssh_spawn_shell', { sessionId: remote.sessionId, ptyId: id });
+      } else {
+        await invoke('spawn_shell', { id });
+      }
     } catch (error) {
       terminal.write(`\x1b[31mFailed to spawn shell: ${error}\x1b[0m\r\n`);
     }
-  }, [id, onExit]);
+  }, [id, onExit, isRemote, remote]);
 
   const resize = useCallback(() => {
     if (fitAddonRef.current && terminalRef.current) {
       fitAddonRef.current.fit();
       const { rows, cols } = terminalRef.current;
-      invoke('resize_pty', { id, rows, cols }).catch(console.error);
+      if (isRemote && remote) {
+        invoke('ssh_resize_shell', { sessionId: remote.sessionId, ptyId: id, rows, cols }).catch(console.error);
+      } else {
+        invoke('resize_pty', { id, rows, cols }).catch(console.error);
+      }
     }
-  }, [id]);
+  }, [id, isRemote, remote]);
 
   const search = useCallback((query: string, findNext = true) => {
     if (searchAddonRef.current) {
@@ -125,10 +139,16 @@ export function useTerminal({ id, onExit }: UseTerminalOptions) {
   }, []);
 
   const dispose = useCallback(() => {
-    // Kill PTY
-    invoke('kill_pty', { id }).catch(() => {
-      // Ignore errors if already dead
-    });
+    // Kill PTY (local or remote)
+    if (isRemote && remote) {
+      invoke('ssh_kill_shell', { sessionId: remote.sessionId, ptyId: id }).catch(() => {
+        // Ignore errors if already dead
+      });
+    } else {
+      invoke('kill_pty', { id }).catch(() => {
+        // Ignore errors if already dead
+      });
+    }
 
     // Unlisten events
     unlistenersRef.current.forEach(unlisten => unlisten());
@@ -144,7 +164,7 @@ export function useTerminal({ id, onExit }: UseTerminalOptions) {
     searchAddonRef.current = null;
     isSpawnedRef.current = false;
     setIsInitialized(false);
-  }, [id]);
+  }, [id, isRemote, remote]);
 
   const write = useCallback((data: string) => {
     terminalRef.current?.write(data);

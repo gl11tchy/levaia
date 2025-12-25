@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { invoke } from '@tauri-apps/api/core';
-import type { FileTab, TerminalInstance, FileEntry, GitStatus, GitBranches, GitCommit } from '../types';
+import type { FileTab, TerminalInstance, FileEntry, GitStatus, GitBranches, GitCommit, RemoteConnection } from '../types';
 import { detectLanguage, getFileName } from '../lib/fileUtils';
 
 interface EditorState {
@@ -40,6 +40,14 @@ interface EditorState {
   gitCommits: GitCommit[];
   gitPanelVisible: boolean;
   gitPanelSection: 'changes' | 'branches' | 'history';
+
+  // Remote State
+  remoteConnections: RemoteConnection[];
+  activeRemoteId: string | null;
+  remoteRootPath: string | null;
+  remoteFileTree: Map<string, FileEntry[]>;
+  remoteExpandedFolders: Set<string>;
+  remoteDialogVisible: boolean;
 
   // Actions - File Explorer
   setRootPath: (path: string | null) => void;
@@ -84,6 +92,15 @@ interface EditorState {
   refreshGitBranches: () => Promise<void>;
   refreshGitCommits: (limit?: number) => Promise<void>;
   refreshAllGitData: () => Promise<void>;
+
+  // Actions - Remote
+  toggleRemoteDialog: () => void;
+  saveRemoteConnection: (connection: RemoteConnection) => void;
+  deleteRemoteConnection: (id: string) => void;
+  connectRemote: (id: string, password?: string) => Promise<void>;
+  disconnectRemote: () => Promise<void>;
+  remoteToggleFolder: (path: string) => Promise<void>;
+  remoteOpenFile: (path: string) => Promise<void>;
 }
 
 // Helper to generate unique IDs
@@ -123,6 +140,14 @@ export const useEditorStore = create<EditorState>()(
       gitCommits: [],
       gitPanelVisible: false,
       gitPanelSection: 'changes',
+
+      // Remote State
+      remoteConnections: [],
+      activeRemoteId: null,
+      remoteRootPath: null,
+      remoteFileTree: new Map(),
+      remoteExpandedFolders: new Set(),
+      remoteDialogVisible: false,
 
       // File Explorer Actions
       setRootPath: (path) => {
@@ -255,7 +280,16 @@ export const useEditorStore = create<EditorState>()(
         if (!tab || !tab.isDirty) return;
 
         try {
-          await invoke('write_file_content', { path: tab.path, content: tab.content });
+          // Check if this is a remote file
+          if (tab.remote) {
+            await invoke('ssh_write_file', {
+              id: tab.remote.sessionId,
+              path: tab.path,
+              content: tab.content,
+            });
+          } else {
+            await invoke('write_file_content', { path: tab.path, content: tab.content });
+          }
 
           set(state => ({
             tabs: state.tabs.map(t =>
@@ -434,6 +468,161 @@ export const useEditorStore = create<EditorState>()(
           refreshGitCommits(),
         ]);
       },
+
+      // Remote Actions
+      toggleRemoteDialog: () => set(state => ({ remoteDialogVisible: !state.remoteDialogVisible })),
+
+      saveRemoteConnection: (connection) => {
+        set(state => {
+          const existing = state.remoteConnections.findIndex(c => c.id === connection.id);
+          if (existing >= 0) {
+            const updated = [...state.remoteConnections];
+            updated[existing] = connection;
+            return { remoteConnections: updated };
+          }
+          return { remoteConnections: [...state.remoteConnections, connection] };
+        });
+      },
+
+      deleteRemoteConnection: (id) => {
+        set(state => ({
+          remoteConnections: state.remoteConnections.filter(c => c.id !== id),
+        }));
+      },
+
+      connectRemote: async (id, password) => {
+        const { remoteConnections } = get();
+        const connection = remoteConnections.find(c => c.id === id);
+        if (!connection) {
+          throw new Error('Connection not found');
+        }
+
+        const sessionId = generateId();
+
+        try {
+          await invoke('ssh_connect', {
+            id: sessionId,
+            host: connection.host,
+            port: connection.port,
+            user: connection.username,
+            auth: {
+              auth_type: connection.authType,
+              password: password || null,
+              key_path: connection.keyPath || null,
+              key_passphrase: null,
+            },
+          });
+
+          // Get home directory as starting path
+          const homePath = await invoke<string>('ssh_get_home_dir', { id: sessionId });
+
+          // Load initial directory
+          const entries = await invoke<FileEntry[]>('ssh_list_directory', {
+            id: sessionId,
+            path: homePath,
+          });
+
+          const newFileTree = new Map<string, FileEntry[]>();
+          newFileTree.set(homePath, entries);
+
+          set({
+            activeRemoteId: sessionId,
+            remoteRootPath: homePath,
+            remoteFileTree: newFileTree,
+            remoteExpandedFolders: new Set([homePath]),
+            remoteDialogVisible: false,
+          });
+        } catch (error) {
+          console.error('Failed to connect:', error);
+          throw error;
+        }
+      },
+
+      disconnectRemote: async () => {
+        const { activeRemoteId } = get();
+        if (activeRemoteId) {
+          try {
+            await invoke('ssh_disconnect', { id: activeRemoteId });
+          } catch (error) {
+            console.error('Failed to disconnect:', error);
+          }
+        }
+        set({
+          activeRemoteId: null,
+          remoteRootPath: null,
+          remoteFileTree: new Map(),
+          remoteExpandedFolders: new Set(),
+        });
+      },
+
+      remoteToggleFolder: async (path) => {
+        const { activeRemoteId, remoteExpandedFolders, remoteFileTree } = get();
+        if (!activeRemoteId) return;
+
+        const newExpanded = new Set(remoteExpandedFolders);
+
+        if (newExpanded.has(path)) {
+          newExpanded.delete(path);
+        } else {
+          newExpanded.add(path);
+
+          // Load folder contents if not cached
+          if (!remoteFileTree.has(path)) {
+            try {
+              const entries = await invoke<FileEntry[]>('ssh_list_directory', {
+                id: activeRemoteId,
+                path,
+              });
+              const newTree = new Map(remoteFileTree);
+              newTree.set(path, entries);
+              set({ remoteFileTree: newTree });
+            } catch (error) {
+              console.error('Failed to read remote directory:', error);
+            }
+          }
+        }
+
+        set({ remoteExpandedFolders: newExpanded });
+      },
+
+      remoteOpenFile: async (path) => {
+        const { activeRemoteId, tabs } = get();
+        if (!activeRemoteId) return;
+
+        // Check if file is already open
+        const existingTab = tabs.find(t => t.path === path && t.remote?.sessionId === activeRemoteId);
+        if (existingTab) {
+          set({ activeTabId: existingTab.id });
+          return;
+        }
+
+        try {
+          const content = await invoke<string>('ssh_read_file', {
+            id: activeRemoteId,
+            path,
+          });
+          const name = getFileName(path);
+          const language = detectLanguage(name);
+
+          const newTab: FileTab = {
+            id: generateId(),
+            path,
+            name,
+            language,
+            content,
+            originalContent: content,
+            isDirty: false,
+            remote: { sessionId: activeRemoteId },
+          };
+
+          set(state => ({
+            tabs: [...state.tabs, newTab],
+            activeTabId: newTab.id,
+          }));
+        } catch (error) {
+          console.error('Failed to open remote file:', error);
+        }
+      },
     }),
     {
       name: 'lite-editor-storage',
@@ -447,6 +636,7 @@ export const useEditorStore = create<EditorState>()(
         tabSize: state.tabSize,
         sidebarVisible: state.sidebarVisible,
         gitPanelVisible: state.gitPanelVisible,
+        remoteConnections: state.remoteConnections,
       }),
     }
   )

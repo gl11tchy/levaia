@@ -1,6 +1,8 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
+import { WebLinksAddon } from '@xterm/addon-web-links';
+import { SearchAddon } from '@xterm/addon-search';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 
@@ -12,6 +14,7 @@ interface UseTerminalOptions {
 export function useTerminal({ id, onExit }: UseTerminalOptions) {
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
+  const searchAddonRef = useRef<SearchAddon | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const isSpawnedRef = useRef(false);
   const unlistenersRef = useRef<UnlistenFn[]>([]);
@@ -54,8 +57,15 @@ export function useTerminal({ id, onExit }: UseTerminalOptions) {
       convertEol: true,
     });
 
+    // Load addons
     const fitAddon = new FitAddon();
+    const webLinksAddon = new WebLinksAddon();
+    const searchAddon = new SearchAddon();
+
     terminal.loadAddon(fitAddon);
+    terminal.loadAddon(webLinksAddon);
+    terminal.loadAddon(searchAddon);
+
     terminal.open(container);
 
     // Delay fit to ensure container has proper dimensions
@@ -63,6 +73,7 @@ export function useTerminal({ id, onExit }: UseTerminalOptions) {
 
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
+    searchAddonRef.current = searchAddon;
     isSpawnedRef.current = true;
     setIsInitialized(true);
 
@@ -99,6 +110,20 @@ export function useTerminal({ id, onExit }: UseTerminalOptions) {
     }
   }, [id]);
 
+  const search = useCallback((query: string, findNext = true) => {
+    if (searchAddonRef.current) {
+      if (findNext) {
+        searchAddonRef.current.findNext(query, { caseSensitive: false });
+      } else {
+        searchAddonRef.current.findPrevious(query, { caseSensitive: false });
+      }
+    }
+  }, []);
+
+  const clearSearch = useCallback(() => {
+    searchAddonRef.current?.clearDecorations();
+  }, []);
+
   const dispose = useCallback(() => {
     // Kill PTY
     invoke('kill_pty', { id }).catch(() => {
@@ -116,6 +141,7 @@ export function useTerminal({ id, onExit }: UseTerminalOptions) {
     }
 
     fitAddonRef.current = null;
+    searchAddonRef.current = null;
     isSpawnedRef.current = false;
     setIsInitialized(false);
   }, [id]);
@@ -153,5 +179,7 @@ export function useTerminal({ id, onExit }: UseTerminalOptions) {
     dispose,
     write,
     focus,
+    search,
+    clearSearch,
   };
 }

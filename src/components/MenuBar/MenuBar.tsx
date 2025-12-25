@@ -247,7 +247,7 @@ export function MenuBar() {
   ];
 
   // Extract project name from rootPath
-  const projectName = rootPath ? rootPath.split('/').pop() : 'Lite';
+  const projectName = rootPath ? rootPath.split('/').pop() : 'LeVaia';
   const gitBranch = useGitBranch(rootPath);
 
   // On macOS, show title bar with menus after traffic light spacer
@@ -255,7 +255,7 @@ export function MenuBar() {
     return (
       <div
         data-tauri-drag-region
-        className="h-9 bg-editor-bg flex items-center border-b border-editor-border select-none"
+        className="h-9 bg-editor-bg flex items-center border-b border-editor-border select-none relative"
       >
         {/* Left spacer for native traffic lights */}
         <div className="w-20 flex-shrink-0" />
@@ -285,10 +285,10 @@ export function MenuBar() {
           />
         </div>
 
-        {/* Centered title */}
+        {/* Centered title - absolute to be truly centered */}
         <div
           data-tauri-drag-region
-          className="flex-1 h-full flex items-center justify-center"
+          className="absolute inset-0 flex items-center justify-center pointer-events-none"
         >
           <span className="text-sm text-editor-text-muted">
             {projectName}
@@ -300,8 +300,6 @@ export function MenuBar() {
             )}
           </span>
         </div>
-
-        <div className="w-4" />
       </div>
     );
   }

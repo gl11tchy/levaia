@@ -638,6 +638,12 @@ export const useEditorStore = create<EditorState>()(
         gitPanelVisible: state.gitPanelVisible,
         remoteConnections: state.remoteConnections,
       }),
+      merge: (persistedState, currentState) => ({
+        ...currentState,
+        ...(persistedState as object),
+        // Ensure remoteConnections is always an array
+        remoteConnections: (persistedState as any)?.remoteConnections ?? [],
+      }),
     }
   )
 );

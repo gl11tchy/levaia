@@ -82,7 +82,6 @@ export function FileTreeNode({
         <FileIcon
           name={entry.name}
           isDirectory={entry.is_directory}
-          isExpanded={isExpanded}
           className="mr-1.5 flex-shrink-0"
         />
 

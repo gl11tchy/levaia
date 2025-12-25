@@ -1,12 +1,12 @@
 [package]
-name = "binch"
+name = "levaia"
 version = "0.1.0"
 description = "A lightweight code editor"
 authors = ["you"]
 edition = "2021"
 
 [lib]
-name = "binch_lib"
+name = "levaia_lib"
 crate-type = ["lib", "cdylib", "staticlib"]
 
 [build-dependencies]

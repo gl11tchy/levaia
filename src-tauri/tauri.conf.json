@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Binch",
+  "productName": "LeVaia",
   "version": "0.1.0",
-  "identifier": "com.binch.editor",
+  "identifier": "com.levaia.editor",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",

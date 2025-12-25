@@ -1,6 +1,22 @@
-# Lite - Lightweight Code Editor
+# LeVaia - Lightweight Code Editor
 
 A minimal, fast code editor built with Tauri v2, React, and Monaco Editor.
+
+## Download
+
+Get the latest release from the [Releases page](https://github.com/gl11tchy/levaia/releases).
+
+### macOS Installation
+
+After downloading the `.dmg` file, you may see a warning that "LeVaia is damaged and can't be opened." This happens because the app is not code-signed with an Apple Developer certificate.
+
+**To fix this, run the following command in Terminal:**
+
+```bash
+xattr -cr /Applications/LeVaia.app
+```
+
+Then open the app normally.
 
 ## Features
 

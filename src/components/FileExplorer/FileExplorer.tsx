@@ -15,6 +15,7 @@ export function FileExplorer() {
     toggleGitPanel,
     // Remote state
     activeRemoteId,
+    activeConnectionId,
     remoteRootPath,
     remoteFileTree,
     disconnectRemote,
@@ -33,6 +34,9 @@ export function FileExplorer() {
   const handleContextMenu = (e: React.MouseEvent, path: string, isDirectory: boolean) => {
     e.preventDefault();
     e.stopPropagation();
+
+    // Disable context menu for remote files (not yet implemented)
+    if (activeRemoteId) return;
 
     setSelectedPath(path);
 
@@ -80,6 +84,8 @@ export function FileExplorer() {
 
   const handleRootContextMenu = (e: React.MouseEvent) => {
     if (!rootPath) return;
+    // Disable context menu for remote files (not yet implemented)
+    if (activeRemoteId) return;
     e.preventDefault();
 
     const items: ContextMenuItem[] = [
@@ -134,9 +140,9 @@ export function FileExplorer() {
   const rootEntries = effectiveRootPath ? effectiveFileTree.get(effectiveRootPath) || [] : [];
   const rootName = effectiveRootPath?.split('/').pop() || '';
 
-  // Get connected server name
+  // Get connected server name (use activeConnectionId, not activeRemoteId which is the session ID)
   const connectedServer = isRemoteMode
-    ? remoteConnections.find(c => c.id === activeRemoteId)?.name || 'Remote'
+    ? remoteConnections.find(c => c.id === activeConnectionId)?.name || 'Remote'
     : null;
 
   if (!effectiveRootPath) {

@@ -43,7 +43,8 @@ interface EditorState {
 
   // Remote State
   remoteConnections: RemoteConnection[];
-  activeRemoteId: string | null;
+  activeRemoteId: string | null;        // SSH session ID
+  activeConnectionId: string | null;    // Connection config ID (for display)
   remoteRootPath: string | null;
   remoteFileTree: Map<string, FileEntry[]>;
   remoteExpandedFolders: Set<string>;
@@ -144,6 +145,7 @@ export const useEditorStore = create<EditorState>()(
       // Remote State
       remoteConnections: [],
       activeRemoteId: null,
+      activeConnectionId: null,
       remoteRootPath: null,
       remoteFileTree: new Map(),
       remoteExpandedFolders: new Set(),
@@ -527,6 +529,7 @@ export const useEditorStore = create<EditorState>()(
 
           set({
             activeRemoteId: sessionId,
+            activeConnectionId: id,
             remoteRootPath: homePath,
             remoteFileTree: newFileTree,
             remoteExpandedFolders: new Set([homePath]),
@@ -539,7 +542,7 @@ export const useEditorStore = create<EditorState>()(
       },
 
       disconnectRemote: async () => {
-        const { activeRemoteId } = get();
+        const { activeRemoteId, tabs } = get();
         if (activeRemoteId) {
           try {
             await invoke('ssh_disconnect', { id: activeRemoteId });
@@ -547,11 +550,19 @@ export const useEditorStore = create<EditorState>()(
             console.error('Failed to disconnect:', error);
           }
         }
+
+        // Close all remote tabs
+        const localTabs = tabs.filter(t => !t.remote);
+        const newActiveTabId = localTabs.length > 0 ? localTabs[0].id : null;
+
         set({
           activeRemoteId: null,
+          activeConnectionId: null,
           remoteRootPath: null,
           remoteFileTree: new Map(),
           remoteExpandedFolders: new Set(),
+          tabs: localTabs,
+          activeTabId: newActiveTabId,
         });
       },
 

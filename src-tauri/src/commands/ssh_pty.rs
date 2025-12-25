@@ -1,93 +1,56 @@
-use ssh2::{Channel, Session};
+use ssh2::Channel;
 use std::collections::HashMap;
 use std::io::{Read, Write};
-use std::net::TcpStream;
-use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use tauri::{AppHandle, Emitter};
 
-// Global SSH PTY storage (separate from SFTP sessions for clarity)
-lazy_static::lazy_static! {
-    static ref SSH_PTY_SESSIONS: Arc<Mutex<HashMap<String, SshPtySession>>> = Arc::new(Mutex::new(HashMap::new()));
-}
+// Import SSH_SESSIONS from ssh module to reuse existing connections
+use super::ssh::SSH_SESSIONS;
 
-struct SshPtySession {
-    channel: Channel,
-    #[allow(dead_code)]
-    session: Session, // Keep session alive
-}
-
+// Global SSH PTY channel storage
 lazy_static::lazy_static! {
+    static ref SSH_PTY_CHANNELS: Arc<Mutex<HashMap<String, Channel>>> = Arc::new(Mutex::new(HashMap::new()));
     static ref SSH_PTY_WRITERS: Arc<Mutex<HashMap<String, std::sync::mpsc::Sender<Vec<u8>>>>> = Arc::new(Mutex::new(HashMap::new()));
 }
 
 #[tauri::command]
 pub fn ssh_spawn_shell(
     app: AppHandle,
+    session_id: String,
     pty_id: String,
-    host: String,
-    port: u16,
-    user: String,
-    auth_type: String,
-    password: Option<String>,
-    key_path: Option<String>,
-    key_passphrase: Option<String>,
 ) -> Result<(), String> {
-    // Check if already exists
+    // Check if PTY already exists
     {
-        let sessions = SSH_PTY_SESSIONS.lock().unwrap();
-        if sessions.contains_key(&pty_id) {
-            return Err("SSH PTY session already exists with this ID".to_string());
+        let channels = SSH_PTY_CHANNELS.lock().unwrap();
+        if channels.contains_key(&pty_id) {
+            return Err("SSH PTY already exists with this ID".to_string());
         }
     }
 
-    // Connect
-    let addr = format!("{}:{}", host, port);
-    let tcp = TcpStream::connect(&addr)
-        .map_err(|e| format!("Failed to connect to {}: {}", addr, e))?;
+    // Get the existing SSH session and create a channel on it
+    let channel = {
+        let sessions = SSH_SESSIONS.lock().unwrap();
+        let ssh_session = sessions.get(&session_id)
+            .ok_or_else(|| format!("SSH session not found: {}", session_id))?;
 
-    let mut session = Session::new()
-        .map_err(|e| format!("Failed to create SSH session: {}", e))?;
+        // Set session to non-blocking for async reads
+        ssh_session.session.set_blocking(false);
 
-    session.set_tcp_stream(tcp);
-    session.handshake()
-        .map_err(|e| format!("SSH handshake failed: {}", e))?;
+        // Open a new channel on the existing session
+        let mut channel = ssh_session.session.channel_session()
+            .map_err(|e| format!("Failed to open channel: {}", e))?;
 
-    // Authenticate
-    match auth_type.as_str() {
-        "password" => {
-            let pw = password.ok_or("Password required")?;
-            session.userauth_password(&user, &pw)
-                .map_err(|e| format!("Password auth failed: {}", e))?;
-        }
-        "key" => {
-            let kp = key_path.ok_or("Key path required")?;
-            let passphrase = key_passphrase.as_deref();
-            session.userauth_pubkey_file(&user, None, Path::new(&kp), passphrase)
-                .map_err(|e| format!("Key auth failed: {}", e))?;
-        }
-        _ => return Err(format!("Unknown auth type: {}", auth_type)),
-    }
+        // Request PTY
+        channel.request_pty("xterm-256color", None, Some((80, 24, 0, 0)))
+            .map_err(|e| format!("Failed to request PTY: {}", e))?;
 
-    if !session.authenticated() {
-        return Err("Authentication failed".to_string());
-    }
+        // Start shell
+        channel.shell()
+            .map_err(|e| format!("Failed to start shell: {}", e))?;
 
-    // Open channel
-    let mut channel = session.channel_session()
-        .map_err(|e| format!("Failed to open channel: {}", e))?;
-
-    // Request PTY
-    channel.request_pty("xterm-256color", None, Some((80, 24, 0, 0)))
-        .map_err(|e| format!("Failed to request PTY: {}", e))?;
-
-    // Start shell
-    channel.shell()
-        .map_err(|e| format!("Failed to start shell: {}", e))?;
-
-    // Set non-blocking for reading
-    session.set_blocking(false);
+        channel
+    };
 
     // Create write channel
     let (tx, rx) = std::sync::mpsc::channel::<Vec<u8>>();
@@ -98,13 +61,10 @@ pub fn ssh_spawn_shell(
         writers.insert(pty_id.clone(), tx);
     }
 
-    // Store session
+    // Store channel
     {
-        let mut sessions = SSH_PTY_SESSIONS.lock().unwrap();
-        sessions.insert(pty_id.clone(), SshPtySession {
-            channel,
-            session,
-        });
+        let mut channels = SSH_PTY_CHANNELS.lock().unwrap();
+        channels.insert(pty_id.clone(), channel);
     }
 
     // Spawn combined reader/writer thread
@@ -116,10 +76,10 @@ pub fn ssh_spawn_shell(
             // Check for data to write
             match rx.try_recv() {
                 Ok(data) => {
-                    let mut sessions = SSH_PTY_SESSIONS.lock().unwrap();
-                    if let Some(pty_session) = sessions.get_mut(&pty_id_clone) {
-                        let _ = pty_session.channel.write_all(&data);
-                        let _ = pty_session.channel.flush();
+                    let mut channels = SSH_PTY_CHANNELS.lock().unwrap();
+                    if let Some(channel) = channels.get_mut(&pty_id_clone) {
+                        let _ = channel.write_all(&data);
+                        let _ = channel.flush();
                     }
                 }
                 Err(std::sync::mpsc::TryRecvError::Disconnected) => {
@@ -133,16 +93,16 @@ pub fn ssh_spawn_shell(
 
             // Try to read from channel
             let read_result = {
-                let mut sessions = SSH_PTY_SESSIONS.lock().unwrap();
-                if let Some(pty_session) = sessions.get_mut(&pty_id_clone) {
-                    match pty_session.channel.read(&mut buffer) {
+                let mut channels = SSH_PTY_CHANNELS.lock().unwrap();
+                if let Some(channel) = channels.get_mut(&pty_id_clone) {
+                    match channel.read(&mut buffer) {
                         Ok(0) => Some(Err("EOF")),
                         Ok(n) => Some(Ok(buffer[..n].to_vec())),
                         Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => None,
                         Err(_) => Some(Err("Read error")),
                     }
                 } else {
-                    Some(Err("Session gone"))
+                    Some(Err("Channel gone"))
                 }
             };
 
@@ -163,10 +123,10 @@ pub fn ssh_spawn_shell(
 
             // Check if channel is closed
             {
-                let sessions = SSH_PTY_SESSIONS.lock().unwrap();
-                if let Some(pty_session) = sessions.get(&pty_id_clone) {
-                    if pty_session.channel.eof() {
-                        drop(sessions);
+                let channels = SSH_PTY_CHANNELS.lock().unwrap();
+                if let Some(channel) = channels.get(&pty_id_clone) {
+                    if channel.eof() {
+                        drop(channels);
                         let _ = app.emit(&format!("pty-exit-{}", pty_id_clone), ());
                         break;
                     }
@@ -176,8 +136,8 @@ pub fn ssh_spawn_shell(
 
         // Clean up
         {
-            let mut sessions = SSH_PTY_SESSIONS.lock().unwrap();
-            sessions.remove(&pty_id_clone);
+            let mut channels = SSH_PTY_CHANNELS.lock().unwrap();
+            channels.remove(&pty_id_clone);
         }
         {
             let mut writers = SSH_PTY_WRITERS.lock().unwrap();
@@ -202,10 +162,10 @@ pub fn ssh_write_to_shell(pty_id: String, data: String) -> Result<(), String> {
 
 #[tauri::command]
 pub fn ssh_resize_shell(pty_id: String, rows: u32, cols: u32) -> Result<(), String> {
-    let mut sessions = SSH_PTY_SESSIONS.lock().unwrap();
+    let mut channels = SSH_PTY_CHANNELS.lock().unwrap();
 
-    if let Some(pty_session) = sessions.get_mut(&pty_id) {
-        pty_session.channel.request_pty_size(cols, rows, None, None)
+    if let Some(channel) = channels.get_mut(&pty_id) {
+        channel.request_pty_size(cols, rows, None, None)
             .map_err(|e| format!("Failed to resize: {}", e))
     } else {
         Err(format!("SSH PTY not found: {}", pty_id))
@@ -220,14 +180,11 @@ pub fn ssh_kill_shell(pty_id: String) -> Result<(), String> {
         writers.remove(&pty_id);
     }
 
-    // Then remove session
+    // Then remove channel
     {
-        let mut sessions = SSH_PTY_SESSIONS.lock().unwrap();
-        if sessions.remove(&pty_id).is_some() {
-            Ok(())
-        } else {
-            // Already removed by thread, that's fine
-            Ok(())
-        }
+        let mut channels = SSH_PTY_CHANNELS.lock().unwrap();
+        channels.remove(&pty_id);
     }
+
+    Ok(())
 }

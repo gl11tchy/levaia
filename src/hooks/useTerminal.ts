@@ -94,7 +94,7 @@ export function useTerminal({ id, onExit, remote }: UseTerminalOptions) {
     // Send terminal input to PTY (local or remote)
     terminal.onData((data) => {
       if (isRemote && remote) {
-        invoke('ssh_write_to_shell', { sessionId: remote.sessionId, ptyId: id, data }).catch(console.error);
+        invoke('ssh_write_to_shell', { ptyId: id, data }).catch(console.error);
       } else {
         invoke('write_to_pty', { id, data }).catch(console.error);
       }
@@ -117,7 +117,7 @@ export function useTerminal({ id, onExit, remote }: UseTerminalOptions) {
       fitAddonRef.current.fit();
       const { rows, cols } = terminalRef.current;
       if (isRemote && remote) {
-        invoke('ssh_resize_shell', { sessionId: remote.sessionId, ptyId: id, rows, cols }).catch(console.error);
+        invoke('ssh_resize_shell', { ptyId: id, rows, cols }).catch(console.error);
       } else {
         invoke('resize_pty', { id, rows, cols }).catch(console.error);
       }
@@ -141,7 +141,7 @@ export function useTerminal({ id, onExit, remote }: UseTerminalOptions) {
   const dispose = useCallback(() => {
     // Kill PTY (local or remote)
     if (isRemote && remote) {
-      invoke('ssh_kill_shell', { sessionId: remote.sessionId, ptyId: id }).catch(() => {
+      invoke('ssh_kill_shell', { ptyId: id }).catch(() => {
         // Ignore errors if already dead
       });
     } else {

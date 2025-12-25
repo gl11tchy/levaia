@@ -9,17 +9,27 @@ use std::sync::{Arc, Mutex};
 // Reuse FileEntry from filesystem module
 use super::filesystem::FileEntry;
 
-// Global SSH session storage
+// Global SSH session storage (public so ssh_pty can reuse sessions)
 lazy_static::lazy_static! {
-    static ref SSH_SESSIONS: Arc<Mutex<HashMap<String, SshSession>>> = Arc::new(Mutex::new(HashMap::new()));
+    pub static ref SSH_SESSIONS: Arc<Mutex<HashMap<String, SshSession>>> = Arc::new(Mutex::new(HashMap::new()));
 }
 
-struct SshSession {
-    session: Session,
+pub struct SshSession {
+    pub session: Session,
     #[allow(dead_code)]
-    host: String,
+    pub host: String,
     #[allow(dead_code)]
-    user: String,
+    pub user: String,
+}
+
+// Expand ~ to home directory in paths
+fn expand_tilde(path: &str) -> String {
+    if path.starts_with("~/") {
+        if let Some(home) = std::env::var_os("HOME") {
+            return path.replacen("~", &home.to_string_lossy(), 1);
+        }
+    }
+    path.to_string()
 }
 
 #[derive(Deserialize)]
@@ -67,6 +77,7 @@ pub fn ssh_connect(
         }
         "key" => {
             let key_path = auth.key_path.ok_or("Key path required for key auth")?;
+            let key_path = expand_tilde(&key_path);
             let key_path = Path::new(&key_path);
             let passphrase = auth.key_passphrase.as_deref();
             session.userauth_pubkey_file(&user, None, key_path, passphrase)

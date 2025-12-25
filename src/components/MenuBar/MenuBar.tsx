@@ -5,6 +5,7 @@ import { useFileSystem } from '../../hooks/useFileSystem';
 import { isMac, formatShortcut } from '../../lib/platform';
 import { WindowControls } from './WindowControls';
 import { useGitBranch } from '../../hooks/useGitBranch';
+import { useUpdateChecker } from '../../hooks/useUpdateChecker';
 
 type MenuItem = {
   label: string;
@@ -119,6 +120,7 @@ export function MenuBar() {
 
   const isMacOS = isMac();
   const activeTab = tabs.find(t => t.id === activeTabId);
+  const { updateAvailable, latestVersion, openReleases, checking } = useUpdateChecker();
 
   const fileMenuItems: MenuItem[] = [
     {
@@ -162,6 +164,16 @@ export function MenuBar() {
       label: 'Close Folder',
       action: closeFolder,
       disabled: !rootPath,
+    },
+    { separator: true },
+    {
+      label: updateAvailable
+        ? `Update Available (v${latestVersion})`
+        : checking
+          ? 'Checking for Updates...'
+          : 'Check for Updates',
+      action: openReleases,
+      disabled: checking,
     },
     { separator: true },
     {

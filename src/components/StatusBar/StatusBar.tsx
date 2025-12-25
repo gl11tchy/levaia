@@ -1,4 +1,5 @@
 import { useEditorStore } from '../../stores/editorStore';
+import { useUpdateChecker } from '../../hooks/useUpdateChecker';
 
 export function StatusBar() {
   const {
@@ -10,6 +11,8 @@ export function StatusBar() {
     toggleTerminal,
     toggleQuickOpen,
   } = useEditorStore();
+
+  const { updateAvailable, latestVersion, openReleases } = useUpdateChecker();
 
   return (
     <div className="h-7 bg-editor-sidebar border-t border-editor-border flex items-center justify-between px-2 text-[11px] text-editor-text-muted select-none">
@@ -93,6 +96,19 @@ export function StatusBar() {
             <path d="M7.5 10h3" fill="none" stroke="currentColor" strokeWidth="1.2" />
           </svg>
         </button>
+
+        {/* Update available indicator */}
+        {updateAvailable && (
+          <button
+            onClick={openReleases}
+            className="p-1.5 rounded transition-colors text-blue-400 hover:bg-editor-hover hover:text-blue-300"
+            title={`Update available: v${latestVersion}`}
+          >
+            <svg className="w-4 h-4" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M8 1a.5.5 0 0 1 .5.5v11.793l3.146-3.147a.5.5 0 0 1 .708.708l-4 4a.5.5 0 0 1-.708 0l-4-4a.5.5 0 0 1 .708-.708L7.5 13.293V1.5A.5.5 0 0 1 8 1z" />
+            </svg>
+          </button>
+        )}
 
         {/* Check/status indicator */}
         <button

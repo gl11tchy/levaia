@@ -3,7 +3,7 @@ import MonacoEditor, { type OnMount, type BeforeMount } from '@monaco-editor/rea
 import { useEditorStore } from '../../stores/editorStore';
 
 export function Editor() {
-  const { tabs, activeTabId, updateContent, wordWrap } = useEditorStore();
+  const { tabs, activeTabId, updateContent, wordWrap, fontSize, tabSize } = useEditorStore();
   const editorRef = useRef<any>(null);
 
   const activeTab = tabs.find(t => t.id === activeTabId);
@@ -109,9 +109,10 @@ export function Editor() {
       onChange={handleChange}
       options={{
         minimap: { enabled: false },
-        fontSize: 14,
+        fontSize,
+        tabSize,
         fontFamily: 'Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-        lineHeight: 20,
+        lineHeight: Math.round(fontSize * 1.5),
         letterSpacing: 0.5,
         wordWrap: wordWrap ? 'on' : 'off',
         automaticLayout: true,

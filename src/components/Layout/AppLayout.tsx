@@ -2,14 +2,16 @@ import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import { useEditorStore } from '../../stores/editorStore';
 import { MenuBar } from '../MenuBar/MenuBar';
 import { FileExplorer } from '../FileExplorer/FileExplorer';
+import { GitPanel } from '../Git/GitPanel';
 import { EditorTabs } from '../Editor/EditorTabs';
 import { Editor } from '../Editor/Editor';
 import { TerminalTabs } from '../Terminal/TerminalTabs';
 import { TerminalPanel } from '../Terminal/TerminalPanel';
 import { QuickOpen } from '../QuickOpen/QuickOpen';
+import { StatusBar } from '../StatusBar/StatusBar';
 
 export function AppLayout() {
-  const { sidebarVisible, terminalVisible, quickOpenVisible } = useEditorStore();
+  const { sidebarVisible, terminalVisible, quickOpenVisible, gitPanelVisible } = useEditorStore();
 
   return (
     <div className="h-screen w-screen flex flex-col bg-editor-bg text-editor-text overflow-hidden">
@@ -26,7 +28,19 @@ export function AppLayout() {
                 id="sidebar"
                 order={1}
               >
-                <FileExplorer />
+                <PanelGroup direction="vertical" autoSaveId="sidebar-vertical">
+                  <Panel id="file-explorer" order={1} defaultSize={gitPanelVisible ? 60 : 100} minSize={30}>
+                    <FileExplorer />
+                  </Panel>
+                  {gitPanelVisible && (
+                    <>
+                      <PanelResizeHandle className="h-[1px] bg-editor-border hover:bg-editor-accent transition-colors" />
+                      <Panel id="git-panel" order={2} defaultSize={40} minSize={20}>
+                        <GitPanel />
+                      </Panel>
+                    </>
+                  )}
+                </PanelGroup>
               </Panel>
               <PanelResizeHandle className="w-[1px] bg-editor-border hover:bg-editor-accent transition-colors" />
             </>
@@ -68,6 +82,8 @@ export function AppLayout() {
       </div>
 
       {quickOpenVisible && <QuickOpen />}
+
+      <StatusBar />
     </div>
   );
 }

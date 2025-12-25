@@ -59,3 +59,36 @@ export interface QuickOpenItem {
   name: string;
   relativePath: string;
 }
+
+// Git types
+export interface GitFileStatus {
+  path: string;
+  status: string;
+  staged: boolean;
+}
+
+export interface GitStatus {
+  staged: GitFileStatus[];
+  unstaged: GitFileStatus[];
+  untracked: GitFileStatus[];
+  has_conflicts: boolean;
+}
+
+export interface GitCommit {
+  hash: string;
+  message: string;
+  author: string;
+  date: string;
+}
+
+export interface GitBranch {
+  name: string;
+  is_current: boolean;
+  is_remote: boolean;
+}
+
+export interface GitBranches {
+  current: string;
+  local: GitBranch[];
+  remote: GitBranch[];
+}

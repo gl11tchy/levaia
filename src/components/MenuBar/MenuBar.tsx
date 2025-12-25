@@ -4,6 +4,7 @@ import { useEditorStore } from '../../stores/editorStore';
 import { useFileSystem } from '../../hooks/useFileSystem';
 import { isMac, formatShortcut } from '../../lib/platform';
 import { WindowControls } from './WindowControls';
+import { useGitBranch } from '../../hooks/useGitBranch';
 
 type MenuItem = {
   label: string;
@@ -104,8 +105,10 @@ export function MenuBar() {
   const {
     toggleSidebar,
     toggleTerminal,
+    toggleGitPanel,
     toggleWordWrap,
     wordWrap,
+    gitPanelVisible,
     saveFile,
     saveAllFiles,
     activeTabId,
@@ -219,6 +222,11 @@ export function MenuBar() {
       shortcut: 'Ctrl+`',
       action: toggleTerminal,
     },
+    {
+      label: gitPanelVisible ? '✓ Source Control' : 'Source Control',
+      shortcut: 'Ctrl+Shift+G',
+      action: toggleGitPanel,
+    },
     { separator: true },
     {
       label: wordWrap ? '✓ Word Wrap' : 'Word Wrap',
@@ -238,14 +246,37 @@ export function MenuBar() {
     },
   ];
 
-  // On macOS, show minimal title bar (native menu handles the rest)
+  // Extract project name from rootPath
+  const projectName = rootPath ? rootPath.split('/').pop() : 'Lite';
+  const gitBranch = useGitBranch(rootPath);
+
+  // On macOS, show minimal title bar with native traffic lights
   if (isMacOS) {
     return (
       <div
         data-tauri-drag-region
-        className="h-9 bg-editor-bg flex items-center justify-center border-b border-editor-border"
+        className="h-9 bg-editor-bg flex items-center border-b border-editor-border relative"
       >
-        <span className="text-sm text-editor-text-muted">Lite</span>
+        {/* Left spacer for native traffic lights */}
+        <div className="w-20 flex-shrink-0" />
+
+        {/* Centered title - absolute positioning for true center */}
+        <div
+          data-tauri-drag-region
+          className="absolute inset-0 flex items-center justify-center pointer-events-none"
+        >
+          <span className="text-sm text-editor-text-muted">
+            {projectName}
+            {gitBranch && (
+              <span className="ml-2 opacity-60">
+                <span className="mx-1.5">—</span>
+                {gitBranch}
+              </span>
+            )}
+          </span>
+        </div>
+
+        <div className="flex-1" />
       </div>
     );
   }
@@ -280,7 +311,21 @@ export function MenuBar() {
         />
       </div>
 
-      <div data-tauri-drag-region className="flex-1 h-full" />
+      {/* Centered title */}
+      <div
+        data-tauri-drag-region
+        className="flex-1 h-full flex items-center justify-center"
+      >
+        <span className="text-sm text-editor-text-muted">
+          {projectName}
+          {gitBranch && (
+            <span className="ml-2 opacity-60">
+              <span className="mx-1.5">—</span>
+              {gitBranch}
+            </span>
+          )}
+        </span>
+      </div>
 
       <WindowControls />
     </div>

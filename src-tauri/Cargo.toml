@@ -1,12 +1,12 @@
 [package]
-name = "lite"
+name = "binch"
 version = "0.1.0"
 description = "A lightweight code editor"
 authors = ["you"]
 edition = "2021"
 
 [lib]
-name = "lite_lib"
+name = "binch_lib"
 crate-type = ["lib", "cdylib", "staticlib"]
 
 [build-dependencies]

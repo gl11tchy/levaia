@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { invoke } from '@tauri-apps/api/core';
-import type { FileTab, TerminalInstance, FileEntry } from '../types';
+import type { FileTab, TerminalInstance, FileEntry, GitStatus, GitBranches, GitCommit } from '../types';
 import { detectLanguage, getFileName } from '../lib/fileUtils';
 
 interface EditorState {
@@ -28,6 +28,13 @@ interface EditorState {
   // Panel sizes (percentages)
   sidebarWidth: number;
   terminalHeight: number;
+
+  // Git State
+  gitStatus: GitStatus | null;
+  gitBranches: GitBranches | null;
+  gitCommits: GitCommit[];
+  gitPanelVisible: boolean;
+  gitPanelSection: 'changes' | 'branches' | 'history';
 
   // Actions - File Explorer
   setRootPath: (path: string | null) => void;
@@ -59,6 +66,14 @@ interface EditorState {
   toggleWordWrap: () => void;
   setSidebarWidth: (width: number) => void;
   setTerminalHeight: (height: number) => void;
+
+  // Actions - Git
+  toggleGitPanel: () => void;
+  setGitPanelSection: (section: 'changes' | 'branches' | 'history') => void;
+  refreshGitStatus: () => Promise<void>;
+  refreshGitBranches: () => Promise<void>;
+  refreshGitCommits: (limit?: number) => Promise<void>;
+  refreshAllGitData: () => Promise<void>;
 }
 
 // Helper to generate unique IDs
@@ -86,6 +101,13 @@ export const useEditorStore = create<EditorState>()(
 
       sidebarWidth: 20,
       terminalHeight: 30,
+
+      // Git State
+      gitStatus: null,
+      gitBranches: null,
+      gitCommits: [],
+      gitPanelVisible: false,
+      gitPanelSection: 'changes',
 
       // File Explorer Actions
       setRootPath: (path) => {
@@ -329,6 +351,64 @@ export const useEditorStore = create<EditorState>()(
       toggleWordWrap: () => set(state => ({ wordWrap: !state.wordWrap })),
       setSidebarWidth: (width) => set({ sidebarWidth: width }),
       setTerminalHeight: (height) => set({ terminalHeight: height }),
+
+      // Git Actions
+      toggleGitPanel: () => set(state => ({ gitPanelVisible: !state.gitPanelVisible })),
+      setGitPanelSection: (section) => set({ gitPanelSection: section }),
+
+      refreshGitStatus: async () => {
+        const { rootPath } = get();
+        if (!rootPath) {
+          set({ gitStatus: null });
+          return;
+        }
+        try {
+          const status = await invoke<GitStatus | null>('git_status', { rootPath });
+          set({ gitStatus: status });
+        } catch (error) {
+          console.error('Failed to get git status:', error);
+          set({ gitStatus: null });
+        }
+      },
+
+      refreshGitBranches: async () => {
+        const { rootPath } = get();
+        if (!rootPath) {
+          set({ gitBranches: null });
+          return;
+        }
+        try {
+          const branches = await invoke<GitBranches | null>('git_branches', { rootPath });
+          set({ gitBranches: branches });
+        } catch (error) {
+          console.error('Failed to get git branches:', error);
+          set({ gitBranches: null });
+        }
+      },
+
+      refreshGitCommits: async (limit = 50) => {
+        const { rootPath } = get();
+        if (!rootPath) {
+          set({ gitCommits: [] });
+          return;
+        }
+        try {
+          const commits = await invoke<GitCommit[]>('git_log', { rootPath, limit });
+          set({ gitCommits: commits });
+        } catch (error) {
+          console.error('Failed to get git log:', error);
+          set({ gitCommits: [] });
+        }
+      },
+
+      refreshAllGitData: async () => {
+        const { refreshGitStatus, refreshGitBranches, refreshGitCommits } = get();
+        await Promise.all([
+          refreshGitStatus(),
+          refreshGitBranches(),
+          refreshGitCommits(),
+        ]);
+      },
     }),
     {
       name: 'lite-editor-storage',
@@ -339,6 +419,7 @@ export const useEditorStore = create<EditorState>()(
         terminalHeight: state.terminalHeight,
         wordWrap: state.wordWrap,
         sidebarVisible: state.sidebarVisible,
+        gitPanelVisible: state.gitPanelVisible,
       }),
     }
   )

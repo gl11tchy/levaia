@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { invoke } from '@tauri-apps/api/core';
@@ -15,36 +15,37 @@ export function useTerminal({ id, onExit }: UseTerminalOptions) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const isSpawnedRef = useRef(false);
   const unlistenersRef = useRef<UnlistenFn[]>([]);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   const initTerminal = useCallback(async (container: HTMLDivElement) => {
     if (terminalRef.current || isSpawnedRef.current) return;
 
     containerRef.current = container;
 
-    // Create terminal
+    // Create terminal with Zed-inspired theme
     const terminal = new Terminal({
       cursorBlink: true,
       fontSize: 14,
       fontFamily: 'Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
       theme: {
-        background: '#1e1e1e',
-        foreground: '#cccccc',
-        cursor: '#cccccc',
-        cursorAccent: '#1e1e1e',
-        selectionBackground: '#264f78',
-        black: '#1e1e1e',
+        background: '#282a2e',
+        foreground: '#c8c8c4',
+        cursor: '#c8c8c4',
+        cursorAccent: '#282a2e',
+        selectionBackground: '#3a5d8c',
+        black: '#282a2e',
         red: '#f44747',
         green: '#6a9955',
         yellow: '#dcdcaa',
-        blue: '#569cd6',
+        blue: '#6b9eff',
         magenta: '#c586c0',
         cyan: '#4ec9b0',
-        white: '#d4d4d4',
-        brightBlack: '#808080',
+        white: '#c8c8c4',
+        brightBlack: '#7d8590',
         brightRed: '#f44747',
         brightGreen: '#6a9955',
         brightYellow: '#dcdcaa',
-        brightBlue: '#569cd6',
+        brightBlue: '#6b9eff',
         brightMagenta: '#c586c0',
         brightCyan: '#4ec9b0',
         brightWhite: '#ffffff',
@@ -63,6 +64,7 @@ export function useTerminal({ id, onExit }: UseTerminalOptions) {
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
     isSpawnedRef.current = true;
+    setIsInitialized(true);
 
     // Set up event listeners for PTY data
     const dataUnlisten = await listen<string>(`pty-data-${id}`, (event) => {
@@ -115,6 +117,7 @@ export function useTerminal({ id, onExit }: UseTerminalOptions) {
 
     fitAddonRef.current = null;
     isSpawnedRef.current = false;
+    setIsInitialized(false);
   }, [id]);
 
   const write = useCallback((data: string) => {
@@ -125,18 +128,19 @@ export function useTerminal({ id, onExit }: UseTerminalOptions) {
     terminalRef.current?.focus();
   }, []);
 
-  // Handle container resize
+  // Handle container resize - only after terminal is initialized
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (!isInitialized || !containerRef.current) return;
 
+    const container = containerRef.current;
     const observer = new ResizeObserver(() => {
       resize();
     });
 
-    observer.observe(containerRef.current);
+    observer.observe(container);
 
     return () => observer.disconnect();
-  }, [resize]);
+  }, [isInitialized, resize]);
 
   // Cleanup on unmount
   useEffect(() => {

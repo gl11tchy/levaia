@@ -8,16 +8,16 @@ export default {
     extend: {
       colors: {
         'editor': {
-          'bg': '#1e1e1e',
-          'sidebar': '#252526',
-          'active': '#37373d',
-          'hover': '#2a2d2e',
-          'border': '#3c3c3c',
-          'text': '#cccccc',
-          'text-muted': '#808080',
-          'accent': '#0078d4',
-          'tab': '#2d2d30',
-          'tab-active': '#1e1e1e',
+          'bg': '#282a2e',
+          'sidebar': '#24262a',
+          'active': '#3a3d42',
+          'hover': '#32353a',
+          'border': '#3d4045',
+          'text': '#c8c8c4',
+          'text-muted': '#7d8590',
+          'accent': '#6b9eff',
+          'tab': '#2c2e32',
+          'tab-active': '#282a2e',
         }
       },
       fontFamily: {

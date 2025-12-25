@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { useEditorStore } from '../../stores/editorStore';
 import { useFileSystem } from '../../hooks/useFileSystem';
+import { useGitBranch } from '../../hooks/useGitBranch';
 import { FileTreeNode } from './FileTreeNode';
 import { ContextMenu } from './ContextMenu';
 import type { ContextMenuPosition, ContextMenuItem } from '../../types';
 
 export function FileExplorer() {
-  const { rootPath, fileTree, setSelectedPath } = useEditorStore();
+  const { rootPath, fileTree, setSelectedPath, gitPanelVisible, toggleGitPanel } = useEditorStore();
+  const gitBranch = useGitBranch(rootPath);
   const { openFolder, createFile, createDirectory, renameItem, deleteItem } = useFileSystem();
   const [contextMenu, setContextMenu] = useState<{
     position: ContextMenuPosition;
@@ -171,6 +173,20 @@ export function FileExplorer() {
           />
         )}
       </div>
+
+      {gitBranch && (
+        <div
+          className="px-3 py-2 border-t border-editor-border flex items-center justify-between text-xs cursor-pointer hover:bg-editor-hover transition-colors"
+          onClick={toggleGitPanel}
+          title={gitPanelVisible ? 'Hide Source Control' : 'Show Source Control'}
+        >
+          <span className="text-editor-text-muted truncate flex items-center gap-1.5">
+            <span className="text-[10px]">⎇</span>
+            {gitBranch}
+          </span>
+          <span className="text-editor-text-muted">{gitPanelVisible ? '−' : '+'}</span>
+        </div>
+      )}
 
       {contextMenu && (
         <ContextMenu

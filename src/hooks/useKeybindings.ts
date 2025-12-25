@@ -7,6 +7,7 @@ export function useKeybindings() {
     toggleSidebar,
     toggleTerminal,
     toggleQuickOpen,
+    toggleGitPanel,
     saveFile,
     saveAllFiles,
     closeTab,
@@ -99,6 +100,13 @@ export function useKeybindings() {
         return;
       }
 
+      // Ctrl/Cmd + Shift + G: Toggle git panel
+      if (modifier && e.shiftKey && key === 'g') {
+        e.preventDefault();
+        toggleGitPanel();
+        return;
+      }
+
       // Escape: Close quick open
       if (key === 'escape') {
         const { quickOpenVisible } = useEditorStore.getState();
@@ -116,6 +124,7 @@ export function useKeybindings() {
     toggleSidebar,
     toggleTerminal,
     toggleQuickOpen,
+    toggleGitPanel,
     saveFile,
     saveAllFiles,
     closeTab,

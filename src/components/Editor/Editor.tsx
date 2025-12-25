@@ -25,27 +25,27 @@ export function Editor() {
       validate: false,
     });
 
-    // Set editor theme
+    // Set editor theme - Zed-inspired
     monaco.editor.defineTheme('lite-dark', {
       base: 'vs-dark',
       inherit: true,
       rules: [],
       colors: {
-        'editor.background': '#1e1e1e',
-        'editor.foreground': '#cccccc',
-        'editorCursor.foreground': '#cccccc',
-        'editor.lineHighlightBackground': '#2a2d2e',
-        'editor.selectionBackground': '#264f78',
-        'editor.inactiveSelectionBackground': '#3a3d41',
-        'editorLineNumber.foreground': '#858585',
-        'editorLineNumber.activeForeground': '#cccccc',
-        'editorGutter.background': '#1e1e1e',
-        'editorWidget.background': '#252526',
-        'editorWidget.border': '#3c3c3c',
-        'input.background': '#3c3c3c',
-        'input.foreground': '#cccccc',
-        'input.border': '#3c3c3c',
-        'focusBorder': '#007acc',
+        'editor.background': '#282a2e',
+        'editor.foreground': '#c8c8c4',
+        'editorCursor.foreground': '#c8c8c4',
+        'editor.lineHighlightBackground': '#32353a',
+        'editor.selectionBackground': '#3a5d8c',
+        'editor.inactiveSelectionBackground': '#3a3d42',
+        'editorLineNumber.foreground': '#6b7280',
+        'editorLineNumber.activeForeground': '#c8c8c4',
+        'editorGutter.background': '#282a2e',
+        'editorWidget.background': '#2c2e32',
+        'editorWidget.border': '#3d4045',
+        'input.background': '#32353a',
+        'input.foreground': '#c8c8c4',
+        'input.border': '#3d4045',
+        'focusBorder': '#6b9eff',
       },
     });
   }, []);

@@ -1,5 +1,9 @@
 mod commands;
 
+use tauri::{WebviewUrl, WebviewWindowBuilder};
+#[cfg(target_os = "macos")]
+use tauri::TitleBarStyle;
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -23,8 +27,38 @@ pub fn run() {
             commands::pty::write_to_pty,
             commands::pty::resize_pty,
             commands::pty::kill_pty,
+            commands::git::get_git_branch,
+            commands::git::git_status,
+            commands::git::git_branches,
+            commands::git::git_log,
+            commands::git::git_stage,
+            commands::git::git_stage_all,
+            commands::git::git_unstage,
+            commands::git::git_unstage_all,
+            commands::git::git_discard_changes,
+            commands::git::git_commit,
+            commands::git::git_checkout,
+            commands::git::git_create_branch,
         ])
         .setup(|app| {
+            // Create main window programmatically
+            let win_builder = WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
+                .title("Lite")
+                .inner_size(1200.0, 800.0)
+                .min_inner_size(800.0, 600.0)
+                .resizable(true);
+
+            // macOS: Use overlay titlebar for native traffic lights
+            #[cfg(target_os = "macos")]
+            let win_builder = win_builder
+                .title_bar_style(TitleBarStyle::Overlay)
+                .hidden_title(true);
+
+            // Windows/Linux: No decorations (custom titlebar)
+            #[cfg(not(target_os = "macos"))]
+            let win_builder = win_builder.decorations(false);
+
+            let _window = win_builder.build()?;
             // Set up platform-specific menu on macOS
             #[cfg(target_os = "macos")]
             {

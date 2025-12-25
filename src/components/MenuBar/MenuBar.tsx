@@ -250,20 +250,45 @@ export function MenuBar() {
   const projectName = rootPath ? rootPath.split('/').pop() : 'Lite';
   const gitBranch = useGitBranch(rootPath);
 
-  // On macOS, show minimal title bar with native traffic lights
+  // On macOS, show title bar with menus after traffic light spacer
   if (isMacOS) {
     return (
       <div
         data-tauri-drag-region
-        className="h-9 bg-editor-bg flex items-center border-b border-editor-border relative"
+        className="h-9 bg-editor-bg flex items-center border-b border-editor-border select-none"
       >
         {/* Left spacer for native traffic lights */}
         <div className="w-20 flex-shrink-0" />
 
-        {/* Centered title - absolute positioning for true center */}
+        {/* Menus */}
+        <div className="flex items-center">
+          <Menu
+            label="File"
+            items={fileMenuItems}
+            isOpen={openMenu === 'file'}
+            onOpen={() => setOpenMenu('file')}
+            onClose={() => setOpenMenu(null)}
+          />
+          <Menu
+            label="Edit"
+            items={editMenuItems}
+            isOpen={openMenu === 'edit'}
+            onOpen={() => setOpenMenu('edit')}
+            onClose={() => setOpenMenu(null)}
+          />
+          <Menu
+            label="View"
+            items={viewMenuItems}
+            isOpen={openMenu === 'view'}
+            onOpen={() => setOpenMenu('view')}
+            onClose={() => setOpenMenu(null)}
+          />
+        </div>
+
+        {/* Centered title */}
         <div
           data-tauri-drag-region
-          className="absolute inset-0 flex items-center justify-center pointer-events-none"
+          className="flex-1 h-full flex items-center justify-center"
         >
           <span className="text-sm text-editor-text-muted">
             {projectName}
@@ -276,7 +301,7 @@ export function MenuBar() {
           </span>
         </div>
 
-        <div className="flex-1" />
+        <div className="w-4" />
       </div>
     );
   }

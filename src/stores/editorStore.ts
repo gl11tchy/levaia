@@ -18,6 +18,8 @@ interface EditorState {
   // Terminal
   terminals: TerminalInstance[];
   activeTerminalId: string | null;
+  terminalSearchVisible: boolean;
+  terminalSearchQuery: string;
 
   // UI State
   sidebarVisible: boolean;
@@ -58,6 +60,8 @@ interface EditorState {
   removeTerminal: (id: string) => void;
   setActiveTerminal: (id: string) => void;
   renameTerminal: (id: string, title: string) => void;
+  toggleTerminalSearch: () => void;
+  setTerminalSearchQuery: (query: string) => void;
 
   // Actions - UI
   toggleSidebar: () => void;
@@ -93,6 +97,8 @@ export const useEditorStore = create<EditorState>()(
 
       terminals: [],
       activeTerminalId: null,
+      terminalSearchVisible: false,
+      terminalSearchQuery: '',
 
       sidebarVisible: true,
       terminalVisible: false,
@@ -335,6 +341,13 @@ export const useEditorStore = create<EditorState>()(
           ),
         }));
       },
+
+      toggleTerminalSearch: () => set(state => ({
+        terminalSearchVisible: !state.terminalSearchVisible,
+        terminalSearchQuery: state.terminalSearchVisible ? '' : state.terminalSearchQuery,
+      })),
+
+      setTerminalSearchQuery: (query) => set({ terminalSearchQuery: query }),
 
       // UI Actions
       toggleSidebar: () => set(state => ({ sidebarVisible: !state.sidebarVisible })),

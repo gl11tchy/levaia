@@ -8,10 +8,11 @@ import { Editor } from '../Editor/Editor';
 import { TerminalTabs } from '../Terminal/TerminalTabs';
 import { TerminalPanel } from '../Terminal/TerminalPanel';
 import { QuickOpen } from '../QuickOpen/QuickOpen';
+import { Settings } from '../Settings/Settings';
 import { StatusBar } from '../StatusBar/StatusBar';
 
 export function AppLayout() {
-  const { sidebarVisible, terminalVisible, quickOpenVisible, gitPanelVisible } = useEditorStore();
+  const { sidebarVisible, terminalVisible, quickOpenVisible, settingsVisible, gitPanelVisible } = useEditorStore();
 
   return (
     <div className="h-screen w-screen flex flex-col bg-editor-bg text-editor-text overflow-hidden">
@@ -82,6 +83,7 @@ export function AppLayout() {
       </div>
 
       {quickOpenVisible && <QuickOpen />}
+      {settingsVisible && <Settings />}
 
       <StatusBar />
     </div>

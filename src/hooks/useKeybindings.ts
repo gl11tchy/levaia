@@ -7,6 +7,7 @@ export function useKeybindings() {
     toggleSidebar,
     toggleTerminal,
     toggleQuickOpen,
+    toggleSettings,
     toggleGitPanel,
     saveFile,
     saveAllFiles,
@@ -107,12 +108,22 @@ export function useKeybindings() {
         return;
       }
 
-      // Escape: Close quick open
+      // Ctrl/Cmd + ,: Settings
+      if (modifier && key === ',') {
+        e.preventDefault();
+        toggleSettings();
+        return;
+      }
+
+      // Escape: Close modals
       if (key === 'escape') {
-        const { quickOpenVisible } = useEditorStore.getState();
+        const { quickOpenVisible, settingsVisible } = useEditorStore.getState();
         if (quickOpenVisible) {
           e.preventDefault();
           toggleQuickOpen();
+        } else if (settingsVisible) {
+          e.preventDefault();
+          toggleSettings();
         }
         return;
       }
@@ -124,6 +135,7 @@ export function useKeybindings() {
     toggleSidebar,
     toggleTerminal,
     toggleQuickOpen,
+    toggleSettings,
     toggleGitPanel,
     saveFile,
     saveAllFiles,

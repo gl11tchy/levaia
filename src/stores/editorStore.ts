@@ -25,7 +25,10 @@ interface EditorState {
   sidebarVisible: boolean;
   terminalVisible: boolean;
   quickOpenVisible: boolean;
+  settingsVisible: boolean;
   wordWrap: boolean;
+  fontSize: number;
+  tabSize: number;
 
   // Panel sizes (percentages)
   sidebarWidth: number;
@@ -67,7 +70,10 @@ interface EditorState {
   toggleSidebar: () => void;
   toggleTerminal: () => void;
   toggleQuickOpen: () => void;
+  toggleSettings: () => void;
   toggleWordWrap: () => void;
+  setFontSize: (size: number) => void;
+  setTabSize: (size: number) => void;
   setSidebarWidth: (width: number) => void;
   setTerminalHeight: (height: number) => void;
 
@@ -103,7 +109,10 @@ export const useEditorStore = create<EditorState>()(
       sidebarVisible: true,
       terminalVisible: false,
       quickOpenVisible: false,
+      settingsVisible: false,
       wordWrap: true,
+      fontSize: 13,
+      tabSize: 2,
 
       sidebarWidth: 20,
       terminalHeight: 30,
@@ -361,7 +370,10 @@ export const useEditorStore = create<EditorState>()(
         }
       },
       toggleQuickOpen: () => set(state => ({ quickOpenVisible: !state.quickOpenVisible })),
+      toggleSettings: () => set(state => ({ settingsVisible: !state.settingsVisible })),
       toggleWordWrap: () => set(state => ({ wordWrap: !state.wordWrap })),
+      setFontSize: (size) => set({ fontSize: size }),
+      setTabSize: (size) => set({ tabSize: size }),
       setSidebarWidth: (width) => set({ sidebarWidth: width }),
       setTerminalHeight: (height) => set({ terminalHeight: height }),
 
@@ -431,6 +443,8 @@ export const useEditorStore = create<EditorState>()(
         sidebarWidth: state.sidebarWidth,
         terminalHeight: state.terminalHeight,
         wordWrap: state.wordWrap,
+        fontSize: state.fontSize,
+        tabSize: state.tabSize,
         sidebarVisible: state.sidebarVisible,
         gitPanelVisible: state.gitPanelVisible,
       }),

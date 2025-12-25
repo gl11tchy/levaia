@@ -48,7 +48,7 @@ function Menu({ label, items, isOpen, onOpen, onClose }: MenuProps) {
   return (
     <div className="relative" ref={menuRef}>
       <button
-        className={`px-3 py-1 text-sm hover:bg-editor-hover rounded ${
+        className={`px-2.5 py-1 text-sm hover:bg-editor-hover rounded ${
           isOpen ? 'bg-editor-hover' : ''
         }`}
         onClick={() => (isOpen ? onClose() : onOpen())}
@@ -167,6 +167,11 @@ export function MenuBar() {
     },
     { separator: true },
     {
+      label: 'Settings',
+      shortcut: 'Ctrl+,',
+      action: () => useEditorStore.getState().toggleSettings(),
+    },
+    {
       label: updateAvailable
         ? `Update Available (v${latestVersion})`
         : checking
@@ -270,7 +275,7 @@ export function MenuBar() {
         className="h-9 bg-editor-bg flex items-center border-b border-editor-border select-none relative"
       >
         {/* Left spacer for native traffic lights */}
-        <div className="w-20 flex-shrink-0" />
+        <div className="w-[68px] flex-shrink-0" />
 
         {/* Menus */}
         <div className="flex items-center">

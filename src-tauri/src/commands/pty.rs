@@ -19,6 +19,14 @@ struct PtyInstance {
 
 #[tauri::command]
 pub fn spawn_shell(app: AppHandle, id: String) -> Result<(), String> {
+    // Check if PTY already exists (handles React StrictMode double-mount)
+    {
+        let instances = PTY_INSTANCES.lock().unwrap();
+        if instances.contains_key(&id) {
+            return Ok(());
+        }
+    }
+
     let pty_system = native_pty_system();
 
     let pair = pty_system

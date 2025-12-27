@@ -1,5 +1,6 @@
-import { useRef, useEffect } from 'react';
-import { useEditorStore } from '../../stores/editorStore';
+import { useRef, useEffect, useState } from "react";
+import { useEditorStore } from "../../stores/editorStore";
+import { themeNames, themeDisplayNames } from "../../lib/terminalThemes";
 
 export function TerminalTabs() {
   const {
@@ -12,9 +13,14 @@ export function TerminalTabs() {
     terminalSearchQuery,
     toggleTerminalSearch,
     setTerminalSearchQuery,
+    terminalTheme,
+    setTerminalTheme,
   } = useEditorStore();
 
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const [themeDropdownOpen, setThemeDropdownOpen] = useState(false);
+  const themeButtonRef = useRef<HTMLButtonElement>(null);
+  const themeDropdownRef = useRef<HTMLDivElement>(null);
 
   // Focus search input when it becomes visible
   useEffect(() => {
@@ -26,18 +32,39 @@ export function TerminalTabs() {
   // Handle keyboard shortcut
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'f') {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "f") {
         e.preventDefault();
         toggleTerminalSearch();
       }
-      if (e.key === 'Escape' && terminalSearchVisible) {
+      if (e.key === "Escape" && terminalSearchVisible) {
         toggleTerminalSearch();
+      }
+      if (e.key === "Escape" && themeDropdownOpen) {
+        setThemeDropdownOpen(false);
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [terminalSearchVisible, toggleTerminalSearch]);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [terminalSearchVisible, toggleTerminalSearch, themeDropdownOpen]);
+
+  // Close theme dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        themeDropdownOpen &&
+        themeDropdownRef.current &&
+        themeButtonRef.current &&
+        !themeDropdownRef.current.contains(e.target as Node) &&
+        !themeButtonRef.current.contains(e.target as Node)
+      ) {
+        setThemeDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [themeDropdownOpen]);
 
   return (
     <div className="flex flex-col bg-editor-sidebar border-b border-editor-border">
@@ -51,8 +78,8 @@ export function TerminalTabs() {
                 key={terminal.id}
                 className={`group flex items-center h-full px-3 cursor-pointer border-r border-editor-border transition-colors duration-75 ${
                   isActive
-                    ? 'bg-editor-bg text-editor-text'
-                    : 'text-editor-text-muted hover:bg-editor-hover hover:text-editor-text'
+                    ? "bg-editor-bg text-editor-text"
+                    : "text-editor-text-muted hover:bg-editor-hover hover:text-editor-text"
                 }`}
                 onClick={() => setActiveTerminal(terminal.id)}
               >
@@ -64,8 +91,8 @@ export function TerminalTabs() {
                 <button
                   className={`ml-2 p-0.5 rounded transition-opacity duration-75 ${
                     isActive
-                      ? 'opacity-60 hover:opacity-100 hover:bg-editor-hover'
-                      : 'opacity-0 group-hover:opacity-60 hover:!opacity-100 hover:bg-editor-hover'
+                      ? "opacity-60 hover:opacity-100 hover:bg-editor-hover"
+                      : "opacity-0 group-hover:opacity-60 hover:!opacity-100 hover:bg-editor-hover"
                   }`}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -89,12 +116,62 @@ export function TerminalTabs() {
           })}
         </div>
 
+        {/* Theme picker button */}
+        <div className="relative">
+          <button
+            ref={themeButtonRef}
+            className={`h-full px-3 transition-colors ${
+              themeDropdownOpen
+                ? "text-editor-accent bg-editor-hover"
+                : "text-editor-text-muted hover:text-editor-text hover:bg-editor-hover"
+            }`}
+            onClick={() => setThemeDropdownOpen(!themeDropdownOpen)}
+            title="Terminal Theme"
+          >
+            <svg
+              className="w-4 h-4"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+            >
+              <circle cx="8" cy="8" r="5" />
+              <path d="M8 3v5l3 3" />
+            </svg>
+          </button>
+
+          {/* Theme dropdown */}
+          {themeDropdownOpen && (
+            <div
+              ref={themeDropdownRef}
+              className="absolute right-0 bottom-full mb-1 w-48 bg-editor-sidebar border border-editor-border rounded shadow-lg z-50 max-h-64 overflow-y-auto"
+            >
+              {themeNames.map((name) => (
+                <button
+                  key={name}
+                  className={`w-full px-3 py-1.5 text-left text-xs transition-colors ${
+                    terminalTheme === name
+                      ? "bg-editor-accent/20 text-editor-accent"
+                      : "text-editor-text hover:bg-editor-hover"
+                  }`}
+                  onClick={() => {
+                    setTerminalTheme(name);
+                    setThemeDropdownOpen(false);
+                  }}
+                >
+                  {themeDisplayNames[name] || name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* Search button */}
         <button
           className={`h-full px-3 transition-colors ${
             terminalSearchVisible
-              ? 'text-editor-accent bg-editor-hover'
-              : 'text-editor-text-muted hover:text-editor-text hover:bg-editor-hover'
+              ? "text-editor-accent bg-editor-hover"
+              : "text-editor-text-muted hover:text-editor-text hover:bg-editor-hover"
           }`}
           onClick={toggleTerminalSearch}
           title="Search Terminal (Cmd+Shift+F)"
@@ -170,7 +247,7 @@ export function TerminalTabs() {
             placeholder="Search terminal..."
             className="flex-1 bg-transparent text-xs text-editor-text placeholder:text-editor-text-muted outline-none"
             onKeyDown={(e) => {
-              if (e.key === 'Escape') {
+              if (e.key === "Escape") {
                 toggleTerminalSearch();
               }
             }}

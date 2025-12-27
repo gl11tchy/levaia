@@ -36,17 +36,24 @@ export function TerminalTabs() {
         e.preventDefault();
         toggleTerminalSearch();
       }
-      if (e.key === "Escape" && terminalSearchVisible) {
-        toggleTerminalSearch();
-      }
-      if (e.key === "Escape" && themeDropdownOpen) {
-        setThemeDropdownOpen(false);
+      // Only close one element at a time with Escape
+      if (e.key === "Escape") {
+        if (terminalSearchVisible) {
+          toggleTerminalSearch();
+        } else if (themeDropdownOpen) {
+          setThemeDropdownOpen(false);
+        }
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [terminalSearchVisible, toggleTerminalSearch, themeDropdownOpen]);
+  }, [
+    terminalSearchVisible,
+    toggleTerminalSearch,
+    themeDropdownOpen,
+    setThemeDropdownOpen,
+  ]);
 
   // Close theme dropdown when clicking outside
   useEffect(() => {

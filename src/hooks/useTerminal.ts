@@ -21,6 +21,7 @@ export function useTerminal({ id, onExit, remote }: UseTerminalOptions) {
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const searchAddonRef = useRef<SearchAddon | null>(null);
+  const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const unlistenersRef = useRef<UnlistenFn[]>([]);
   const initializedRef = useRef(false);
   const isRemote = !!remote;
@@ -141,6 +142,7 @@ export function useTerminal({ id, onExit, remote }: UseTerminalOptions) {
         }
       });
       resizeObserver.observe(container);
+      resizeObserverRef.current = resizeObserver;
 
       // Subscribe to theme changes
       let currentTheme = terminalTheme;
@@ -170,13 +172,29 @@ export function useTerminal({ id, onExit, remote }: UseTerminalOptions) {
   // Cleanup
   useEffect(() => {
     return () => {
+      // Disconnect ResizeObserver
+      resizeObserverRef.current?.disconnect();
+      resizeObserverRef.current = null;
+
+      // Remove event listeners
       unlistenersRef.current.forEach((fn) => fn());
+      unlistenersRef.current = [];
+
+      // Kill PTY
       if (isRemote && remote) {
         invoke("ssh_kill_shell", { ptyId: id }).catch(() => {});
       } else {
         invoke("kill_pty", { id }).catch(() => {});
       }
+
+      // Dispose terminal
       terminalRef.current?.dispose();
+      terminalRef.current = null;
+      fitAddonRef.current = null;
+      searchAddonRef.current = null;
+
+      // Reset initialized flag so remount can re-initialize
+      initializedRef.current = false;
     };
   }, [id, isRemote, remote]);
 

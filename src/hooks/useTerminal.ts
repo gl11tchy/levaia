@@ -1,10 +1,15 @@
-import { useEffect, useRef, useCallback, useState } from 'react';
-import { Terminal } from '@xterm/xterm';
-import { FitAddon } from '@xterm/addon-fit';
-import { WebLinksAddon } from '@xterm/addon-web-links';
-import { SearchAddon } from '@xterm/addon-search';
-import { invoke } from '@tauri-apps/api/core';
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { useEffect, useRef, useCallback } from "react";
+import { Terminal } from "@xterm/xterm";
+import { FitAddon } from "@xterm/addon-fit";
+import { WebLinksAddon } from "@xterm/addon-web-links";
+import { SearchAddon } from "@xterm/addon-search";
+import { WebglAddon } from "@xterm/addon-webgl";
+import { LigaturesAddon } from "@xterm/addon-ligatures";
+import { ImageAddon } from "@xterm/addon-image";
+import { invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { getTheme } from "../lib/terminalThemes";
+import { useEditorStore } from "../stores/editorStore";
 
 interface UseTerminalOptions {
   id: string;
@@ -16,190 +21,182 @@ export function useTerminal({ id, onExit, remote }: UseTerminalOptions) {
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const searchAddonRef = useRef<SearchAddon | null>(null);
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const isSpawnedRef = useRef(false);
+  const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const unlistenersRef = useRef<UnlistenFn[]>([]);
-  const [isInitialized, setIsInitialized] = useState(false);
+  const initializedRef = useRef(false);
   const isRemote = !!remote;
 
-  const initTerminal = useCallback(async (container: HTMLDivElement) => {
-    if (terminalRef.current || isSpawnedRef.current) return;
+  const initTerminal = useCallback(
+    async (container: HTMLDivElement) => {
+      // Prevent double initialization (React StrictMode)
+      if (initializedRef.current) return;
+      initializedRef.current = true;
 
-    containerRef.current = container;
+      // Get theme from store
+      const terminalTheme = useEditorStore.getState().terminalTheme;
+      const theme = getTheme(terminalTheme);
 
-    // Create terminal with Zed-inspired theme
-    const terminal = new Terminal({
-      cursorBlink: true,
-      fontSize: 14,
-      fontFamily: 'Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-      theme: {
-        background: '#282a2e',
-        foreground: '#c8c8c4',
-        cursor: '#c8c8c4',
-        cursorAccent: '#282a2e',
-        selectionBackground: '#3a5d8c',
-        black: '#282a2e',
-        red: '#f44747',
-        green: '#6a9955',
-        yellow: '#dcdcaa',
-        blue: '#6b9eff',
-        magenta: '#c586c0',
-        cyan: '#4ec9b0',
-        white: '#c8c8c4',
-        brightBlack: '#7d8590',
-        brightRed: '#f44747',
-        brightGreen: '#6a9955',
-        brightYellow: '#dcdcaa',
-        brightBlue: '#6b9eff',
-        brightMagenta: '#c586c0',
-        brightCyan: '#4ec9b0',
-        brightWhite: '#ffffff',
-      },
-      scrollback: 10000,
-      convertEol: true,
-    });
+      const terminal = new Terminal({
+        cursorBlink: true,
+        fontSize: 14,
+        fontFamily:
+          '"Fira Code", "JetBrains Mono", Menlo, Monaco, Consolas, monospace',
+        allowProposedApi: true,
+        theme,
+        scrollback: 10000,
+        // Performance optimizations
+        fastScrollModifier: "alt",
+        fastScrollSensitivity: 5,
+        scrollSensitivity: 1,
+        smoothScrollDuration: 0,
+      });
 
-    // Load addons
-    const fitAddon = new FitAddon();
-    const webLinksAddon = new WebLinksAddon();
-    const searchAddon = new SearchAddon();
+      const fitAddon = new FitAddon();
+      const searchAddon = new SearchAddon();
+      const webLinksAddon = new WebLinksAddon();
+      const ligaturesAddon = new LigaturesAddon();
+      const imageAddon = new ImageAddon();
 
-    terminal.loadAddon(fitAddon);
-    terminal.loadAddon(webLinksAddon);
-    terminal.loadAddon(searchAddon);
+      terminal.loadAddon(fitAddon);
+      terminal.loadAddon(searchAddon);
+      terminal.loadAddon(webLinksAddon);
+      terminal.loadAddon(ligaturesAddon);
+      terminal.loadAddon(imageAddon);
 
-    terminal.open(container);
+      terminal.open(container);
 
-    // Delay fit to ensure container has proper dimensions
-    setTimeout(() => fitAddon.fit(), 0);
+      // Try to load WebGL addon for GPU acceleration, fall back to canvas
+      try {
+        const webglAddon = new WebglAddon();
+        webglAddon.onContextLoss(() => {
+          webglAddon.dispose();
+        });
+        terminal.loadAddon(webglAddon);
+      } catch (e) {
+        console.warn("WebGL not supported, using canvas renderer");
+      }
 
-    terminalRef.current = terminal;
-    fitAddonRef.current = fitAddon;
-    searchAddonRef.current = searchAddon;
-    isSpawnedRef.current = true;
-    setIsInitialized(true);
+      fitAddon.fit();
 
-    // Set up event listeners for PTY data
-    const dataUnlisten = await listen<string>(`pty-data-${id}`, (event) => {
-      terminal.write(event.payload);
-    });
+      terminalRef.current = terminal;
+      fitAddonRef.current = fitAddon;
+      searchAddonRef.current = searchAddon;
 
-    const exitUnlisten = await listen(`pty-exit-${id}`, () => {
-      terminal.write('\r\n\x1b[90m[Process exited]\x1b[0m\r\n');
-      onExit?.();
-    });
+      // Listen for PTY output
+      const dataUnlisten = await listen<string>(`pty-data-${id}`, (event) => {
+        terminal.write(event.payload);
+      });
 
-    unlistenersRef.current = [dataUnlisten, exitUnlisten];
+      const exitUnlisten = await listen(`pty-exit-${id}`, () => {
+        terminal.write("\r\n[Process exited]\r\n");
+        onExit?.();
+      });
 
-    // Send terminal input to PTY (local or remote)
-    terminal.onData((data) => {
+      unlistenersRef.current = [dataUnlisten, exitUnlisten];
+
+      // Send input to PTY
+      terminal.onData((data) => {
+        if (isRemote && remote) {
+          invoke("ssh_write_to_shell", { ptyId: id, data }).catch(
+            console.error,
+          );
+        } else {
+          invoke("write_to_pty", { id, data }).catch(console.error);
+        }
+      });
+
+      // Spawn shell
+      try {
+        if (isRemote && remote) {
+          await invoke("ssh_spawn_shell", {
+            sessionId: remote.sessionId,
+            ptyId: id,
+          });
+        } else {
+          await invoke("spawn_shell", { id });
+        }
+      } catch (err) {
+        terminal.write(`\x1b[31mFailed to spawn shell: ${err}\x1b[0m\r\n`);
+      }
+
+      // Initial resize
+      const { rows, cols } = terminal;
       if (isRemote && remote) {
-        invoke('ssh_write_to_shell', { ptyId: id, data }).catch(console.error);
+        invoke("ssh_resize_shell", { ptyId: id, rows, cols }).catch(
+          console.error,
+        );
       } else {
-        invoke('write_to_pty', { id, data }).catch(console.error);
+        invoke("resize_pty", { id, rows, cols }).catch(console.error);
       }
-    });
 
-    // Spawn the shell (local or remote)
-    try {
-      if (isRemote && remote) {
-        await invoke('ssh_spawn_shell', { sessionId: remote.sessionId, ptyId: id });
-      } else {
-        await invoke('spawn_shell', { id });
-      }
-    } catch (error) {
-      terminal.write(`\x1b[31mFailed to spawn shell: ${error}\x1b[0m\r\n`);
-    }
-  }, [id, onExit, isRemote, remote]);
+      // Handle resize
+      const resizeObserver = new ResizeObserver(() => {
+        fitAddon.fit();
+        const { rows, cols } = terminal;
+        if (isRemote && remote) {
+          invoke("ssh_resize_shell", { ptyId: id, rows, cols }).catch(
+            console.error,
+          );
+        } else {
+          invoke("resize_pty", { id, rows, cols }).catch(console.error);
+        }
+      });
+      resizeObserver.observe(container);
+      resizeObserverRef.current = resizeObserver;
 
-  const resize = useCallback(() => {
-    if (fitAddonRef.current && terminalRef.current) {
-      fitAddonRef.current.fit();
-      const { rows, cols } = terminalRef.current;
-      if (isRemote && remote) {
-        invoke('ssh_resize_shell', { ptyId: id, rows, cols }).catch(console.error);
-      } else {
-        invoke('resize_pty', { id, rows, cols }).catch(console.error);
-      }
-    }
-  }, [id, isRemote, remote]);
+      // Subscribe to theme changes
+      let currentTheme = terminalTheme;
+      const unsubscribeTheme = useEditorStore.subscribe((state) => {
+        if (state.terminalTheme !== currentTheme) {
+          currentTheme = state.terminalTheme;
+          terminal.options.theme = getTheme(currentTheme);
+        }
+      });
+      unlistenersRef.current.push(unsubscribeTheme);
+    },
+    [id, onExit, isRemote, remote],
+  );
 
-  const search = useCallback((query: string, findNext = true) => {
-    if (searchAddonRef.current) {
-      if (findNext) {
-        searchAddonRef.current.findNext(query, { caseSensitive: false });
-      } else {
-        searchAddonRef.current.findPrevious(query, { caseSensitive: false });
-      }
-    }
+  const focus = useCallback(() => {
+    terminalRef.current?.focus();
+  }, []);
+
+  const search = useCallback((query: string) => {
+    searchAddonRef.current?.findNext(query, { caseSensitive: false });
   }, []);
 
   const clearSearch = useCallback(() => {
     searchAddonRef.current?.clearDecorations();
   }, []);
 
-  const dispose = useCallback(() => {
-    // Kill PTY (local or remote)
-    if (isRemote && remote) {
-      invoke('ssh_kill_shell', { ptyId: id }).catch(() => {
-        // Ignore errors if already dead
-      });
-    } else {
-      invoke('kill_pty', { id }).catch(() => {
-        // Ignore errors if already dead
-      });
-    }
+  // Cleanup
+  useEffect(() => {
+    return () => {
+      // Disconnect ResizeObserver
+      resizeObserverRef.current?.disconnect();
+      resizeObserverRef.current = null;
 
-    // Unlisten events
-    unlistenersRef.current.forEach(unlisten => unlisten());
-    unlistenersRef.current = [];
+      // Remove event listeners
+      unlistenersRef.current.forEach((fn) => fn());
+      unlistenersRef.current = [];
 
-    // Dispose terminal
-    if (terminalRef.current) {
-      terminalRef.current.dispose();
+      // Kill PTY
+      if (isRemote && remote) {
+        invoke("ssh_kill_shell", { ptyId: id }).catch(() => {});
+      } else {
+        invoke("kill_pty", { id }).catch(() => {});
+      }
+
+      // Dispose terminal
+      terminalRef.current?.dispose();
       terminalRef.current = null;
-    }
+      fitAddonRef.current = null;
+      searchAddonRef.current = null;
 
-    fitAddonRef.current = null;
-    searchAddonRef.current = null;
-    isSpawnedRef.current = false;
-    setIsInitialized(false);
+      // Reset initialized flag so remount can re-initialize
+      initializedRef.current = false;
+    };
   }, [id, isRemote, remote]);
 
-  const write = useCallback((data: string) => {
-    terminalRef.current?.write(data);
-  }, []);
-
-  const focus = useCallback(() => {
-    terminalRef.current?.focus();
-  }, []);
-
-  // Handle container resize - only after terminal is initialized
-  useEffect(() => {
-    if (!isInitialized || !containerRef.current) return;
-
-    const container = containerRef.current;
-    const observer = new ResizeObserver(() => {
-      resize();
-    });
-
-    observer.observe(container);
-
-    return () => observer.disconnect();
-  }, [isInitialized, resize]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => dispose();
-  }, [dispose]);
-
-  return {
-    initTerminal,
-    resize,
-    dispose,
-    write,
-    focus,
-    search,
-    clearSearch,
-  };
+  return { initTerminal, focus, search, clearSearch };
 }

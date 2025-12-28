@@ -1,8 +1,16 @@
-import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import { invoke } from '@tauri-apps/api/core';
-import type { FileTab, TerminalInstance, FileEntry, GitStatus, GitBranches, GitCommit, RemoteConnection } from '../types';
-import { detectLanguage, getFileName } from '../lib/fileUtils';
+import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
+import { invoke } from "@tauri-apps/api/core";
+import type {
+  FileTab,
+  TerminalInstance,
+  FileEntry,
+  GitStatus,
+  GitBranches,
+  GitCommit,
+  RemoteConnection,
+} from "../types";
+import { detectLanguage, getFileName } from "../lib/fileUtils";
 
 interface EditorState {
   // File Explorer
@@ -20,6 +28,7 @@ interface EditorState {
   activeTerminalId: string | null;
   terminalSearchVisible: boolean;
   terminalSearchQuery: string;
+  terminalTheme: string;
 
   // UI State
   sidebarVisible: boolean;
@@ -39,12 +48,12 @@ interface EditorState {
   gitBranches: GitBranches | null;
   gitCommits: GitCommit[];
   gitPanelVisible: boolean;
-  gitPanelSection: 'changes' | 'branches' | 'history';
+  gitPanelSection: "changes" | "branches" | "history";
 
   // Remote State
   remoteConnections: RemoteConnection[];
-  activeRemoteId: string | null;        // SSH session ID
-  activeConnectionId: string | null;    // Connection config ID (for display)
+  activeRemoteId: string | null; // SSH session ID
+  activeConnectionId: string | null; // Connection config ID (for display)
   remoteRootPath: string | null;
   remoteFileTree: Map<string, FileEntry[]>;
   remoteExpandedFolders: Set<string>;
@@ -74,6 +83,7 @@ interface EditorState {
   renameTerminal: (id: string, title: string) => void;
   toggleTerminalSearch: () => void;
   setTerminalSearchQuery: (query: string) => void;
+  setTerminalTheme: (theme: string) => void;
 
   // Actions - UI
   toggleSidebar: () => void;
@@ -88,7 +98,7 @@ interface EditorState {
 
   // Actions - Git
   toggleGitPanel: () => void;
-  setGitPanelSection: (section: 'changes' | 'branches' | 'history') => void;
+  setGitPanelSection: (section: "changes" | "branches" | "history") => void;
   refreshGitStatus: () => Promise<void>;
   refreshGitBranches: () => Promise<void>;
   refreshGitCommits: (limit?: number) => Promise<void>;
@@ -122,7 +132,8 @@ export const useEditorStore = create<EditorState>()(
       terminals: [],
       activeTerminalId: null,
       terminalSearchVisible: false,
-      terminalSearchQuery: '',
+      terminalSearchQuery: "",
+      terminalTheme: "vscode-dark",
 
       sidebarVisible: true,
       terminalVisible: false,
@@ -140,7 +151,7 @@ export const useEditorStore = create<EditorState>()(
       gitBranches: null,
       gitCommits: [],
       gitPanelVisible: false,
-      gitPanelSection: 'changes',
+      gitPanelSection: "changes",
 
       // Remote State
       remoteConnections: [],
@@ -176,12 +187,14 @@ export const useEditorStore = create<EditorState>()(
           // Load folder contents if not cached
           if (!fileTree.has(path)) {
             try {
-              const entries = await invoke<FileEntry[]>('read_directory', { path });
+              const entries = await invoke<FileEntry[]>("read_directory", {
+                path,
+              });
               const newFileTree = new Map(fileTree);
               newFileTree.set(path, entries);
               set({ fileTree: newFileTree });
             } catch (error) {
-              console.error('Failed to read directory:', error);
+              console.error("Failed to read directory:", error);
             }
           }
         }
@@ -193,13 +206,13 @@ export const useEditorStore = create<EditorState>()(
 
       refreshFolder: async (path) => {
         try {
-          const entries = await invoke<FileEntry[]>('read_directory', { path });
+          const entries = await invoke<FileEntry[]>("read_directory", { path });
           const { fileTree } = get();
           const newFileTree = new Map(fileTree);
           newFileTree.set(path, entries);
           set({ fileTree: newFileTree });
         } catch (error) {
-          console.error('Failed to refresh directory:', error);
+          console.error("Failed to refresh directory:", error);
         }
       },
 
@@ -208,14 +221,14 @@ export const useEditorStore = create<EditorState>()(
         const { tabs } = get();
 
         // Check if file is already open
-        const existingTab = tabs.find(t => t.path === path);
+        const existingTab = tabs.find((t) => t.path === path);
         if (existingTab) {
           set({ activeTabId: existingTab.id });
           return;
         }
 
         try {
-          const content = await invoke<string>('read_file_content', { path });
+          const content = await invoke<string>("read_file_content", { path });
           const name = getFileName(path);
           const language = detectLanguage(name);
 
@@ -229,23 +242,23 @@ export const useEditorStore = create<EditorState>()(
             isDirty: false,
           };
 
-          set(state => ({
+          set((state) => ({
             tabs: [...state.tabs, newTab],
             activeTabId: newTab.id,
           }));
         } catch (error) {
-          console.error('Failed to open file:', error);
+          console.error("Failed to open file:", error);
           // Could show error toast here
         }
       },
 
       closeTab: (id) => {
         const { tabs, activeTabId } = get();
-        const tabIndex = tabs.findIndex(t => t.id === id);
+        const tabIndex = tabs.findIndex((t) => t.id === id);
 
         if (tabIndex === -1) return;
 
-        const newTabs = tabs.filter(t => t.id !== id);
+        const newTabs = tabs.filter((t) => t.id !== id);
         let newActiveId = activeTabId;
 
         if (activeTabId === id) {
@@ -266,48 +279,51 @@ export const useEditorStore = create<EditorState>()(
       setActiveTab: (id) => set({ activeTabId: id }),
 
       updateContent: (id, content) => {
-        set(state => ({
-          tabs: state.tabs.map(tab =>
+        set((state) => ({
+          tabs: state.tabs.map((tab) =>
             tab.id === id
               ? { ...tab, content, isDirty: content !== tab.originalContent }
-              : tab
+              : tab,
           ),
         }));
       },
 
       saveFile: async (id) => {
         const { tabs } = get();
-        const tab = tabs.find(t => t.id === id);
+        const tab = tabs.find((t) => t.id === id);
 
         if (!tab || !tab.isDirty) return;
 
         try {
           // Check if this is a remote file
           if (tab.remote) {
-            await invoke('ssh_write_file', {
+            await invoke("ssh_write_file", {
               id: tab.remote.sessionId,
               path: tab.path,
               content: tab.content,
             });
           } else {
-            await invoke('write_file_content', { path: tab.path, content: tab.content });
+            await invoke("write_file_content", {
+              path: tab.path,
+              content: tab.content,
+            });
           }
 
-          set(state => ({
-            tabs: state.tabs.map(t =>
+          set((state) => ({
+            tabs: state.tabs.map((t) =>
               t.id === id
                 ? { ...t, isDirty: false, originalContent: t.content }
-                : t
+                : t,
             ),
           }));
         } catch (error) {
-          console.error('Failed to save file:', error);
+          console.error("Failed to save file:", error);
         }
       },
 
       saveAllFiles: async () => {
         const { tabs, saveFile } = get();
-        const dirtyTabs = tabs.filter(t => t.isDirty);
+        const dirtyTabs = tabs.filter((t) => t.isDirty);
 
         for (const tab of dirtyTabs) {
           await saveFile(tab.id);
@@ -318,7 +334,7 @@ export const useEditorStore = create<EditorState>()(
         const { tabs, activeTabId } = get();
         if (tabs.length <= 1) return;
 
-        const currentIndex = tabs.findIndex(t => t.id === activeTabId);
+        const currentIndex = tabs.findIndex((t) => t.id === activeTabId);
         const nextIndex = (currentIndex + 1) % tabs.length;
         set({ activeTabId: tabs[nextIndex].id });
       },
@@ -327,7 +343,7 @@ export const useEditorStore = create<EditorState>()(
         const { tabs, activeTabId } = get();
         if (tabs.length <= 1) return;
 
-        const currentIndex = tabs.findIndex(t => t.id === activeTabId);
+        const currentIndex = tabs.findIndex((t) => t.id === activeTabId);
         const prevIndex = (currentIndex - 1 + tabs.length) % tabs.length;
         set({ activeTabId: tabs[prevIndex].id });
       },
@@ -343,7 +359,7 @@ export const useEditorStore = create<EditorState>()(
           title: `Terminal ${number}`,
         };
 
-        set(state => ({
+        set((state) => ({
           terminals: [...state.terminals, newTerminal],
           activeTerminalId: id,
           terminalVisible: true,
@@ -354,11 +370,11 @@ export const useEditorStore = create<EditorState>()(
 
       removeTerminal: (id) => {
         const { terminals, activeTerminalId } = get();
-        const termIndex = terminals.findIndex(t => t.id === id);
+        const termIndex = terminals.findIndex((t) => t.id === id);
 
         if (termIndex === -1) return;
 
-        const newTerminals = terminals.filter(t => t.id !== id);
+        const newTerminals = terminals.filter((t) => t.id !== id);
         let newActiveId = activeTerminalId;
 
         if (activeTerminalId === id) {
@@ -380,22 +396,28 @@ export const useEditorStore = create<EditorState>()(
       setActiveTerminal: (id) => set({ activeTerminalId: id }),
 
       renameTerminal: (id, title) => {
-        set(state => ({
-          terminals: state.terminals.map(t =>
-            t.id === id ? { ...t, title } : t
+        set((state) => ({
+          terminals: state.terminals.map((t) =>
+            t.id === id ? { ...t, title } : t,
           ),
         }));
       },
 
-      toggleTerminalSearch: () => set(state => ({
-        terminalSearchVisible: !state.terminalSearchVisible,
-        terminalSearchQuery: state.terminalSearchVisible ? '' : state.terminalSearchQuery,
-      })),
+      toggleTerminalSearch: () =>
+        set((state) => ({
+          terminalSearchVisible: !state.terminalSearchVisible,
+          terminalSearchQuery: state.terminalSearchVisible
+            ? ""
+            : state.terminalSearchQuery,
+        })),
 
       setTerminalSearchQuery: (query) => set({ terminalSearchQuery: query }),
 
+      setTerminalTheme: (theme) => set({ terminalTheme: theme }),
+
       // UI Actions
-      toggleSidebar: () => set(state => ({ sidebarVisible: !state.sidebarVisible })),
+      toggleSidebar: () =>
+        set((state) => ({ sidebarVisible: !state.sidebarVisible })),
       toggleTerminal: () => {
         const { terminalVisible, terminals, addTerminal } = get();
 
@@ -405,16 +427,19 @@ export const useEditorStore = create<EditorState>()(
           set({ terminalVisible: !terminalVisible });
         }
       },
-      toggleQuickOpen: () => set(state => ({ quickOpenVisible: !state.quickOpenVisible })),
-      toggleSettings: () => set(state => ({ settingsVisible: !state.settingsVisible })),
-      toggleWordWrap: () => set(state => ({ wordWrap: !state.wordWrap })),
+      toggleQuickOpen: () =>
+        set((state) => ({ quickOpenVisible: !state.quickOpenVisible })),
+      toggleSettings: () =>
+        set((state) => ({ settingsVisible: !state.settingsVisible })),
+      toggleWordWrap: () => set((state) => ({ wordWrap: !state.wordWrap })),
       setFontSize: (size) => set({ fontSize: size }),
       setTabSize: (size) => set({ tabSize: size }),
       setSidebarWidth: (width) => set({ sidebarWidth: width }),
       setTerminalHeight: (height) => set({ terminalHeight: height }),
 
       // Git Actions
-      toggleGitPanel: () => set(state => ({ gitPanelVisible: !state.gitPanelVisible })),
+      toggleGitPanel: () =>
+        set((state) => ({ gitPanelVisible: !state.gitPanelVisible })),
       setGitPanelSection: (section) => set({ gitPanelSection: section }),
 
       refreshGitStatus: async () => {
@@ -424,10 +449,12 @@ export const useEditorStore = create<EditorState>()(
           return;
         }
         try {
-          const status = await invoke<GitStatus | null>('git_status', { rootPath });
+          const status = await invoke<GitStatus | null>("git_status", {
+            rootPath,
+          });
           set({ gitStatus: status });
         } catch (error) {
-          console.error('Failed to get git status:', error);
+          console.error("Failed to get git status:", error);
           set({ gitStatus: null });
         }
       },
@@ -439,10 +466,12 @@ export const useEditorStore = create<EditorState>()(
           return;
         }
         try {
-          const branches = await invoke<GitBranches | null>('git_branches', { rootPath });
+          const branches = await invoke<GitBranches | null>("git_branches", {
+            rootPath,
+          });
           set({ gitBranches: branches });
         } catch (error) {
-          console.error('Failed to get git branches:', error);
+          console.error("Failed to get git branches:", error);
           set({ gitBranches: null });
         }
       },
@@ -454,16 +483,20 @@ export const useEditorStore = create<EditorState>()(
           return;
         }
         try {
-          const commits = await invoke<GitCommit[]>('git_log', { rootPath, limit });
+          const commits = await invoke<GitCommit[]>("git_log", {
+            rootPath,
+            limit,
+          });
           set({ gitCommits: commits });
         } catch (error) {
-          console.error('Failed to get git log:', error);
+          console.error("Failed to get git log:", error);
           set({ gitCommits: [] });
         }
       },
 
       refreshAllGitData: async () => {
-        const { refreshGitStatus, refreshGitBranches, refreshGitCommits } = get();
+        const { refreshGitStatus, refreshGitBranches, refreshGitCommits } =
+          get();
         await Promise.all([
           refreshGitStatus(),
           refreshGitBranches(),
@@ -472,37 +505,42 @@ export const useEditorStore = create<EditorState>()(
       },
 
       // Remote Actions
-      toggleRemoteDialog: () => set(state => ({ remoteDialogVisible: !state.remoteDialogVisible })),
+      toggleRemoteDialog: () =>
+        set((state) => ({ remoteDialogVisible: !state.remoteDialogVisible })),
 
       saveRemoteConnection: (connection) => {
-        set(state => {
-          const existing = state.remoteConnections.findIndex(c => c.id === connection.id);
+        set((state) => {
+          const existing = state.remoteConnections.findIndex(
+            (c) => c.id === connection.id,
+          );
           if (existing >= 0) {
             const updated = [...state.remoteConnections];
             updated[existing] = connection;
             return { remoteConnections: updated };
           }
-          return { remoteConnections: [...state.remoteConnections, connection] };
+          return {
+            remoteConnections: [...state.remoteConnections, connection],
+          };
         });
       },
 
       deleteRemoteConnection: (id) => {
-        set(state => ({
-          remoteConnections: state.remoteConnections.filter(c => c.id !== id),
+        set((state) => ({
+          remoteConnections: state.remoteConnections.filter((c) => c.id !== id),
         }));
       },
 
       connectRemote: async (id, password) => {
         const { remoteConnections } = get();
-        const connection = remoteConnections.find(c => c.id === id);
+        const connection = remoteConnections.find((c) => c.id === id);
         if (!connection) {
-          throw new Error('Connection not found');
+          throw new Error("Connection not found");
         }
 
         const sessionId = generateId();
 
         try {
-          await invoke('ssh_connect', {
+          await invoke("ssh_connect", {
             id: sessionId,
             host: connection.host,
             port: connection.port,
@@ -516,10 +554,12 @@ export const useEditorStore = create<EditorState>()(
           });
 
           // Get home directory as starting path
-          const homePath = await invoke<string>('ssh_get_home_dir', { id: sessionId });
+          const homePath = await invoke<string>("ssh_get_home_dir", {
+            id: sessionId,
+          });
 
           // Load initial directory
-          const entries = await invoke<FileEntry[]>('ssh_list_directory', {
+          const entries = await invoke<FileEntry[]>("ssh_list_directory", {
             id: sessionId,
             path: homePath,
           });
@@ -536,7 +576,7 @@ export const useEditorStore = create<EditorState>()(
             remoteDialogVisible: false,
           });
         } catch (error) {
-          console.error('Failed to connect:', error);
+          console.error("Failed to connect:", error);
           throw error;
         }
       },
@@ -545,14 +585,14 @@ export const useEditorStore = create<EditorState>()(
         const { activeRemoteId, tabs } = get();
         if (activeRemoteId) {
           try {
-            await invoke('ssh_disconnect', { id: activeRemoteId });
+            await invoke("ssh_disconnect", { id: activeRemoteId });
           } catch (error) {
-            console.error('Failed to disconnect:', error);
+            console.error("Failed to disconnect:", error);
           }
         }
 
         // Close all remote tabs
-        const localTabs = tabs.filter(t => !t.remote);
+        const localTabs = tabs.filter((t) => !t.remote);
         const newActiveTabId = localTabs.length > 0 ? localTabs[0].id : null;
 
         set({
@@ -580,7 +620,7 @@ export const useEditorStore = create<EditorState>()(
           // Load folder contents if not cached
           if (!remoteFileTree.has(path)) {
             try {
-              const entries = await invoke<FileEntry[]>('ssh_list_directory', {
+              const entries = await invoke<FileEntry[]>("ssh_list_directory", {
                 id: activeRemoteId,
                 path,
               });
@@ -588,7 +628,7 @@ export const useEditorStore = create<EditorState>()(
               newTree.set(path, entries);
               set({ remoteFileTree: newTree });
             } catch (error) {
-              console.error('Failed to read remote directory:', error);
+              console.error("Failed to read remote directory:", error);
             }
           }
         }
@@ -601,14 +641,16 @@ export const useEditorStore = create<EditorState>()(
         if (!activeRemoteId) return;
 
         // Check if file is already open
-        const existingTab = tabs.find(t => t.path === path && t.remote?.sessionId === activeRemoteId);
+        const existingTab = tabs.find(
+          (t) => t.path === path && t.remote?.sessionId === activeRemoteId,
+        );
         if (existingTab) {
           set({ activeTabId: existingTab.id });
           return;
         }
 
         try {
-          const content = await invoke<string>('ssh_read_file', {
+          const content = await invoke<string>("ssh_read_file", {
             id: activeRemoteId,
             path,
           });
@@ -626,17 +668,17 @@ export const useEditorStore = create<EditorState>()(
             remote: { sessionId: activeRemoteId },
           };
 
-          set(state => ({
+          set((state) => ({
             tabs: [...state.tabs, newTab],
             activeTabId: newTab.id,
           }));
         } catch (error) {
-          console.error('Failed to open remote file:', error);
+          console.error("Failed to open remote file:", error);
         }
       },
     }),
     {
-      name: 'lite-editor-storage',
+      name: "lite-editor-storage",
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         rootPath: state.rootPath,
@@ -648,6 +690,7 @@ export const useEditorStore = create<EditorState>()(
         sidebarVisible: state.sidebarVisible,
         gitPanelVisible: state.gitPanelVisible,
         remoteConnections: state.remoteConnections,
+        terminalTheme: state.terminalTheme,
       }),
       merge: (persistedState, currentState) => ({
         ...currentState,
@@ -655,6 +698,6 @@ export const useEditorStore = create<EditorState>()(
         // Ensure remoteConnections is always an array
         remoteConnections: (persistedState as any)?.remoteConnections ?? [],
       }),
-    }
-  )
+    },
+  ),
 );

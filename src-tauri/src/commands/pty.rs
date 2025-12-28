@@ -19,13 +19,7 @@ struct PtyInstance {
 
 #[tauri::command]
 pub fn spawn_shell(app: AppHandle, id: String) -> Result<(), String> {
-    // Check if PTY already exists (handles React StrictMode double-mount)
-    {
-        let instances = PTY_INSTANCES.lock().unwrap();
-        if instances.contains_key(&id) {
-            return Ok(());
-        }
-    }
+    use std::collections::hash_map::Entry;
 
     let pty_system = native_pty_system();
 
@@ -69,17 +63,23 @@ pub fn spawn_shell(app: AppHandle, id: String) -> Result<(), String> {
         .try_clone_reader()
         .map_err(|e| format!("Failed to get reader: {}", e))?;
 
-    // Store PTY instance
+    // Store PTY instance using atomic check-and-insert to prevent TOCTOU race
     {
         let mut instances = PTY_INSTANCES.lock().unwrap();
-        instances.insert(
-            id.clone(),
-            PtyInstance {
-                writer,
-                child,
-                master: pair.master,
-            },
-        );
+        match instances.entry(id.clone()) {
+            Entry::Occupied(_) => {
+                // PTY already exists (handles React StrictMode double-mount)
+                // Resources from this attempt will be dropped automatically
+                return Ok(());
+            }
+            Entry::Vacant(entry) => {
+                entry.insert(PtyInstance {
+                    writer,
+                    child,
+                    master: pair.master,
+                });
+            }
+        }
     }
 
     // Spawn reader thread

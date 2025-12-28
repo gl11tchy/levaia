@@ -2,6 +2,11 @@ import { useRef, useEffect, useState } from "react";
 import { useEditorStore } from "../../stores/editorStore";
 import { themeNames, themeDisplayNames } from "../../lib/terminalThemes";
 
+/**
+ * Renders the terminal tabs UI with controls for adding, selecting, and removing terminals, a theme picker, and an inline search bar.
+ *
+ * Provides keyboard shortcuts (Cmd/Ctrl+Shift+F to toggle search, Escape to close the search or theme dropdown), outside-click dismissal for the theme dropdown, and focus management for the search input.
+ */
 export function TerminalTabs() {
   const {
     terminals,

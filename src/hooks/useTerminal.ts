@@ -17,6 +17,18 @@ interface UseTerminalOptions {
   remote?: { sessionId: string };
 }
 
+/**
+ * Creates and manages an xterm.js terminal instance tied to a local or remote PTY.
+ *
+ * @param options.id - Unique PTY identifier used for backend routing and event channels
+ * @param options.onExit - Optional callback invoked when the underlying process exits
+ * @param options.remote - Optional remote session info; when present, all backend calls use SSH variants and `remote.sessionId` is included
+ * @returns An API with:
+ *   - `initTerminal(container)`: attaches and initializes the terminal into the provided HTML container,
+ *   - `focus()`: focuses the terminal,
+ *   - `search(query)`: searches forward for `query` (case-insensitive),
+ *   - `clearSearch()`: clears search decorations
+ */
 export function useTerminal({ id, onExit, remote }: UseTerminalOptions) {
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);

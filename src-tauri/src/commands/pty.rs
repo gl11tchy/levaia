@@ -17,6 +17,20 @@ struct PtyInstance {
     master: Box<dyn portable_pty::MasterPty + Send>,
 }
 
+/// Spawns a platform-appropriate shell attached to a new PTY and begins emitting its output.
+///
+/// Creates a new PTY, launches the shell process attached to the PTY, stores the PTY instance under `id`, and starts a background thread that emits `pty-data-<id>` events for output and `pty-exit-<id>` when the process exits. If a PTY instance already exists for `id`, the function returns immediately without replacing the existing instance.
+///
+/// # Returns
+///
+/// `Ok(())` on success; `Err(String)` with a formatted error message on failure.
+///
+/// # Examples
+///
+/// ```no_run
+/// // let app: tauri::AppHandle = /* obtain AppHandle */ ;
+/// // spawn_shell(app, "terminal-1".into()).unwrap();
+/// ```
 #[tauri::command]
 pub fn spawn_shell(app: AppHandle, id: String) -> Result<(), String> {
     use std::collections::hash_map::Entry;
@@ -150,6 +164,19 @@ pub fn resize_pty(id: String, rows: u16, cols: u16) -> Result<(), String> {
     }
 }
 
+/// Terminates and removes the PTY instance identified by `id`.
+///
+/// Attempts to kill the child process for the PTY and remove its entry from the global PTY map.
+///
+/// # Returns
+///
+/// `Ok(())` on success; `Err(String)` with "PTY instance not found: <id>" if no matching instance exists.
+///
+/// # Examples
+///
+/// ```
+/// let _ = kill_pty("my-pty".into());
+/// ```
 #[tauri::command]
 pub fn kill_pty(id: String) -> Result<(), String> {
     let mut instances = PTY_INSTANCES.lock().unwrap();

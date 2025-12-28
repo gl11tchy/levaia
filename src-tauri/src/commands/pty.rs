@@ -154,7 +154,9 @@ pub fn resize_pty(id: String, rows: u16, cols: u16) -> Result<(), String> {
 pub fn kill_pty(id: String) -> Result<(), String> {
     let mut instances = PTY_INSTANCES.lock().unwrap();
 
-    if instances.remove(&id).is_some() {
+    if let Some(mut instance) = instances.remove(&id) {
+        // Explicitly kill the child process to prevent orphaned processes
+        let _ = instance.child.kill();
         Ok(())
     } else {
         Err(format!("PTY instance not found: {}", id))
